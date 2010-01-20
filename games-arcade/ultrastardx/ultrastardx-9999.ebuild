@@ -29,8 +29,7 @@ DEPEND="dev-lang/fpc
 
 src_unpack() {
 	subversion_src_unpack
-	cd "${S}"
-	cd "src"
+	cd "${S}/src"
 	epatch "${FILESDIR}"/remove_ffmpeg_checks.patch
 }
 
