@@ -1,0 +1,329 @@
+From 9148f74e419815d9c654d172afdc46571028d170 Mon Sep 17 00:00:00 2001
+From: Mike Kaplinskiy <mike.kaplinskiy@gmail.com>
+Date: Tue, 25 Aug 2009 20:06:57 -0400
+Subject: [PATCH 8/9] ws2_32: implement AcceptEx
+To: wine-patches <wine-patches@winehq.org>
+
+---
+ dlls/ws2_32/socket.c     |  230 +++++++++++++++++++++++++++++++++++++++++++++-
+ dlls/ws2_32/tests/sock.c |   10 +-
+ 2 files changed, 232 insertions(+), 8 deletions(-)
+
+diff --git a/dlls/ws2_32/socket.c b/dlls/ws2_32/socket.c
+index 9a65cb0..f1d7b29 100644
+--- a/dlls/ws2_32/socket.c
++++ b/dlls/ws2_32/socket.c
+@@ -247,6 +247,19 @@ typedef struct ws2_async
+     struct iovec                        iovec[1];
+ } ws2_async;
+ 
++typedef struct ws2_accept_async
++{
++    SOCKET              s_listen;
++    SOCKET              s_accept;
++    LPOVERLAPPED        user_overlapped;
++    ULONG_PTR           cvalue;
++    PVOID               buf;
++    int                 data_len;
++    int                 local_len;
++    int                 remote_len;
++    ws2_async           *read;
++} ws2_accept_async;
++
+ /****************************************************************/
+ 
+ /* ----------------------------------- internal data */
+@@ -264,6 +277,8 @@ typedef struct          /* WSAAsyncSelect() control struct */
+ #define WS_MAX_SOCKETS_PER_PROCESS      128     /* reasonable guess */
+ #define WS_MAX_UDP_DATAGRAM             1024
+ static INT WINAPI WSA_DefaultBlockingHook( FARPROC x );
++static void WS_AddCompletion( SOCKET sock, ULONG_PTR CompletionValue, NTSTATUS CompletionStatus,
++                              ULONG Information );
+ 
+ /* hostent's, servent's and protent's are stored in one buffer per thread,
+  * as documented on MSDN for the functions that return any of the buffers */
+@@ -1521,6 +1536,123 @@ static NTSTATUS WS2_async_shutdown( void* user, PIO_STATUS_BLOCK iosb, NTSTATUS
+ }
+ 
+ /***********************************************************************
++ *              WS2_async_accept_recv            (INTERNAL)
++ *
++ * This function is used to finish the acceptex read request. It is
++ * needed to place the completion on the correct socket (listener).
++ */
++static NTSTATUS WINAPI WS2_async_accept_recv( void *arg, IO_STATUS_BLOCK *iosb, NTSTATUS status )
++{
++    void *apc;
++    struct ws2_accept_async *wsa = arg;
++
++    if (!wsa->read)
++    {
++        if (!(wsa->read = HeapAlloc( GetProcessHeap(), 0,
++                                     FIELD_OFFSET(struct ws2_async, iovec[1]) )))
++        {
++            iosb->u.Status = STATUS_NO_MEMORY;
++            iosb->Information = 0;
++            goto finish;
++        }
++
++        wsa->read->hSocket     = SOCKET2HANDLE(wsa->s_accept);
++        wsa->read->addr        = NULL;
++        wsa->read->addrlen.ptr = NULL;
++        wsa->read->flags       = 0;
++        wsa->read->n_iovecs    = 1;
++        wsa->read->first_iovec = 0;
++
++        wsa->read->iovec[0].iov_base = wsa->buf;
++        wsa->read->iovec[0].iov_len  = wsa->data_len;
++    }
++
++    status = WS2_async_recv( wsa->read, iosb, status, &apc);
++    if (status == STATUS_PENDING)
++        return status;
++
++finish:
++    if (wsa->user_overlapped->hEvent) SetEvent(wsa->user_overlapped->hEvent);
++    if (wsa->cvalue) WS_AddCompletion( wsa->s_listen, wsa->cvalue, iosb->u.Status, iosb->Information );
++
++    HeapFree( GetProcessHeap(), 0, wsa->read );
++    HeapFree( GetProcessHeap(), 0, wsa );
++    return status;
++}
++
++/***********************************************************************
++ *              WS2_async_accept                (INTERNAL)
++ *
++ * This is the function called to satisfy the AcceptEx callback
++ */
++static NTSTATUS WINAPI WS2_async_accept( void *arg, IO_STATUS_BLOCK *iosb, NTSTATUS status )
++{
++    struct ws2_accept_async *wsa = arg;
++    char *addr = ((char *) wsa->buf) + wsa->data_len;
++    int len;
++
++    TRACE("listen: %lx, accept: %lx, status %x\n", wsa->s_listen, wsa->s_accept, status);
++
++    if (status == STATUS_HANDLES_CLOSED)
++        status = STATUS_CANCELLED;
++
++    if (status != STATUS_ALERTED)
++        goto error;
++
++    /* WS2 Spec says size param is extra 16 bytes long...what do we put in it? */
++    len = wsa->local_len - sizeof(int);
++    WS_getsockname(wsa->s_accept, (struct WS_sockaddr *)(addr + sizeof(int)),&len);
++    *(int *)addr = len;
++
++    addr += wsa->local_len;
++
++    len = wsa->remote_len - sizeof(int);
++    WS_getpeername(wsa->s_accept, (struct WS_sockaddr *)(addr + sizeof(int)),&len);
++    *(int *)addr = len;
++
++    if (!wsa->data_len)
++    {
++        iosb->u.Status = STATUS_SUCCESS;
++        iosb->Information = 0;
++        goto finish;
++    }
++
++    SERVER_START_REQ( register_async )
++    {
++        req->type           = ASYNC_TYPE_READ;
++        req->async.handle   = wine_server_obj_handle( SOCKET2HANDLE(wsa->s_accept) );
++        req->async.callback = wine_server_client_ptr( WS2_async_accept_recv );
++        req->async.iosb     = wine_server_client_ptr( iosb );
++        req->async.arg      = wine_server_client_ptr( wsa );
++        status = wine_server_call( req );
++    }
++    SERVER_END_REQ;
++
++    if (status != STATUS_PENDING)
++    {
++        ERR("Could not register async read, %x\n", status);
++        goto error;
++    }
++
++    iosb->u.Status = STATUS_PENDING;
++    iosb->Information = 0;
++
++    return STATUS_SUCCESS;
++
++error:
++    iosb->u.Status = status;
++    iosb->Information = 0;
++
++finish:
++    if (wsa->user_overlapped->hEvent) SetEvent(wsa->user_overlapped->hEvent);
++    if (wsa->cvalue) WS_AddCompletion( wsa->s_listen, wsa->cvalue, iosb->u.Status, iosb->Information );
++
++    HeapFree( GetProcessHeap(), 0, wsa );
++
++    return status;
++}
++
++/***********************************************************************
+  *  WS2_register_async_shutdown         (INTERNAL)
+  *
+  * Helper function for WS_shutdown() on overlapped sockets.
+@@ -2596,9 +2728,20 @@ INT WINAPI WSAIoctl(SOCKET s,
+ 	break;
+ 
+    case WS_SIO_GET_EXTENSION_FUNCTION_POINTER:
+-       FIXME("SIO_GET_EXTENSION_FUNCTION_POINTER %s: stub\n", debugstr_guid(lpvInBuffer));
+-       WSASetLastError(WSAEOPNOTSUPP);
+-       return SOCKET_ERROR;
++   {
++        GUID acceptex_guid = WSAID_ACCEPTEX;
++
++        if ( IsEqualGUID(&acceptex_guid, lpvInBuffer) )
++        {
++            *(LPFN_ACCEPTEX *)lpbOutBuffer = AcceptEx;
++            WSASetLastError(STATUS_SUCCESS);
++            return STATUS_SUCCESS;
++        }
++
++        FIXME("SIO_GET_EXTENSION_FUNCTION_POINTER %s: stub\n", debugstr_guid(lpvInBuffer));
++        WSASetLastError(WSAEOPNOTSUPP);
++        return SOCKET_ERROR;
++   }
+ 
+    case WS_SIO_KEEPALIVE_VALS:
+    {
+@@ -5001,6 +5144,87 @@ SOCKET WINAPI WSAAccept( SOCKET s, struct WS_sockaddr *addr, LPINT addrlen,
+ }
+ 
+ /***********************************************************************
++ *     AcceptEx (ws2_32.@)
++ *
++ * Accept a new connection, retrieving the connected addresses and initial data.
++ *
++ * listener       [I] Listening socket
++ * acceptor       [I] Socket to accept on
++ * dest           [O] Destination for inital data
++ * dest_len       [I] Size of dest in bytes
++ * local_addr_len [I] Number of bytes reserved in dest for local addrress
++ * rem_addr_len   [I] Number of bytes reserved in dest for remote addrress
++ * received       [O] Destination for number of bytes of initial data
++ * overlapped     [I] For asynchronous execution
++ *
++ * RETURNS
++ * Success: TRUE (Does this ever happen on windows?)
++ * Failure: FALSE. Use WSAGetLastError() for details of the error.
++ */
++BOOL WINAPI AcceptEx( SOCKET listener, SOCKET acceptor, PVOID dest, DWORD dest_len, DWORD local_addr_len,
++                      DWORD rem_addr_len, LPDWORD received, LPOVERLAPPED overlapped )
++{
++    DWORD status;
++    struct ws2_accept_async *wsa;
++    ULONG_PTR cvalue = (overlapped && ((ULONG_PTR)overlapped->hEvent & 1) == 0) ? (ULONG_PTR)overlapped : 0;
++
++    TRACE("(%lx, %lx, %p, %d, %d, %d, %p, %p)\n", listener, acceptor, dest, dest_len, local_addr_len,
++                                                  rem_addr_len, received, overlapped);
++
++    if (!dest)
++    {
++        set_error(STATUS_INVALID_PARAMETER);
++        return FALSE;
++    }
++
++    if (!overlapped)
++    {
++        WSASetLastError(WSA_INVALID_PARAMETER);
++        return FALSE;
++    }
++
++    wsa = HeapAlloc( GetProcessHeap(), 0, sizeof(*wsa) );
++    if(!wsa)
++    {
++        set_error(ERROR_NOT_ENOUGH_MEMORY);
++        return FALSE;
++    }
++
++    wsa->s_listen        = listener;
++    wsa->s_accept        = acceptor;
++    wsa->user_overlapped = overlapped;
++    wsa->cvalue          = cvalue;
++    wsa->buf             = dest;
++    wsa->data_len        = dest_len;
++    wsa->local_len       = local_addr_len;
++    wsa->remote_len      = rem_addr_len;
++    wsa->read            = NULL;
++
++    SERVER_START_REQ( register_accept_async )
++    {
++        req->data.handle   = wine_server_obj_handle( SOCKET2HANDLE(wsa->s_listen) );
++        req->ahandle       = wine_server_obj_handle( SOCKET2HANDLE(wsa->s_accept) );
++        req->data.callback = wine_server_client_ptr( WS2_async_accept );
++        req->data.iosb     = wine_server_client_ptr( wsa->user_overlapped );
++        req->data.arg      = wine_server_client_ptr( wsa );
++        req->data.cvalue   = 0;
++        status = wine_server_call( req );
++    }
++    SERVER_END_REQ;
++
++    if(status != STATUS_PENDING)
++    {
++        FIXME("Failed to query async: %x\n", status);
++        HeapFree( GetProcessHeap(), 0, wsa );
++        set_error(status);
++        return FALSE;
++    }
++
++    set_error( STATUS_PENDING );
++    return FALSE;
++}
++
++/***********************************************************************
+  *              WSADuplicateSocketA                      (WS2_32.32)
+  */
+ int WINAPI WSADuplicateSocketA( SOCKET s, DWORD dwProcessId, LPWSAPROTOCOL_INFOA lpProtocolInfo )
+diff --git a/dlls/ws2_32/tests/sock.c b/dlls/ws2_32/tests/sock.c
+index fbe55f6..0049730 100644
+--- a/dlls/ws2_32/tests/sock.c
++++ b/dlls/ws2_32/tests/sock.c
+@@ -2888,7 +2888,7 @@ static void test_AcceptEx(void)
+     bret = pAcceptEx(listener, INVALID_SOCKET, buffer, sizeof(buffer) - 2*(sizeof(struct sockaddr_in) + 16),
+         sizeof(struct sockaddr_in) + 16, sizeof(struct sockaddr_in) + 16,
+         &bytesReturned, &overlapped);
+-    ok(bret == FALSE && WSAGetLastError() == WSAEINVAL, "AcceptEx on invalid accepting socket "
++    todo_wine ok(bret == FALSE && WSAGetLastError() == WSAEINVAL, "AcceptEx on invalid accepting socket "
+         "returned %d + errno %d\n", bret, WSAGetLastError());
+ 
+     bret = pAcceptEx(listener, acceptor, NULL, sizeof(buffer) - 2*(sizeof(struct sockaddr_in) + 16),
+@@ -2901,12 +2901,12 @@ static void test_AcceptEx(void)
+ 
+     bret = pAcceptEx(listener, acceptor, buffer, 0, 0, sizeof(struct sockaddr_in) + 16,
+         &bytesReturned, &overlapped);
+-    ok(bret == FALSE && WSAGetLastError() == WSAEINVAL, "AcceptEx on too small local address size "
++    todo_wine ok(bret == FALSE && WSAGetLastError() == WSAEINVAL, "AcceptEx on too small local address size "
+         "returned %d + errno %d\n", bret, WSAGetLastError());
+ 
+     bret = pAcceptEx(listener, acceptor, buffer, 0, sizeof(struct sockaddr_in) + 16, 0,
+         &bytesReturned, &overlapped);
+-    ok(bret == FALSE && WSAGetLastError() == WSAEINVAL, "AcceptEx on too small remote address size "
++    todo_wine ok(bret == FALSE && WSAGetLastError() == WSAEINVAL, "AcceptEx on too small remote address size "
+         "returned %d + errno %d\n", bret, WSAGetLastError());
+ 
+     bret = pAcceptEx(listener, acceptor, buffer, 0,
+@@ -2918,7 +2918,7 @@ static void test_AcceptEx(void)
+     bret = pAcceptEx(listener, acceptor, buffer, sizeof(buffer) - 2*(sizeof(struct sockaddr_in) + 16),
+         sizeof(struct sockaddr_in) + 16, sizeof(struct sockaddr_in) + 16,
+         &bytesReturned, &overlapped);
+-    ok(bret == FALSE && WSAGetLastError() == WSAEINVAL, "AcceptEx on a non-listening socket "
++    todo_wine ok(bret == FALSE && WSAGetLastError() == WSAEINVAL, "AcceptEx on a non-listening socket "
+         "returned %d + errno %d\n", bret, WSAGetLastError());
+ 
+     iret = listen(listener, 5);
+@@ -2956,7 +2956,7 @@ static void test_AcceptEx(void)
+     }
+ 
+     iret = connect(acceptor,  (struct sockaddr*)&bindAddress, sizeof(bindAddress));
+-    ok((iret == SOCKET_ERROR && WSAGetLastError() == WSAEINVAL) || broken(!iret) /* NT4 */,
++    todo_wine ok((iret == SOCKET_ERROR && WSAGetLastError() == WSAEINVAL) || broken(!iret) /* NT4 */,
+        "connecting to acceptex acceptor succeeded? return %d + errno %d\n", iret, WSAGetLastError());
+     if (!iret || (iret == SOCKET_ERROR && WSAGetLastError() == WSAEWOULDBLOCK)) {
+         /* We need to cancel this call, otherwise things fail */
+-- 
+1.6.5.7
+

@@ -1,0 +1,108 @@
+From 070e9036d1ea2614afb0c0bb3a5c529160d322dc Mon Sep 17 00:00:00 2001
+From: Mike Kaplinskiy <mike.kaplinskiy@gmail.com>
+Date: Sun, 9 Aug 2009 13:58:27 -0400
+Subject: [PATCH 1/9] server: add alloc_sock to init socket objects
+To: wine-patches <wine-patches@winehq.org>
+
+---
+ server/sock.c |   50 ++++++++++++++++++++++++++++----------------------
+ 1 files changed, 28 insertions(+), 22 deletions(-)
+
+diff --git a/server/sock.c b/server/sock.c
+index 71d8ccb..b5af1d3 100644
+--- a/server/sock.c
++++ b/server/sock.c
+@@ -577,6 +577,31 @@ static void sock_destroy( struct object *obj )
+     }
+ }
+ 
++static struct sock *alloc_sock(void)
++{
++    struct sock *sock;
++    if (!(sock = alloc_object( &sock_ops )))
++        return NULL;
++
++    sock->state = 0;
++    sock->mask    = 0;
++    sock->hmask   = 0;
++    sock->pmask   = 0;
++    sock->polling = 0;
++    sock->flags   = 0;
++    sock->type    = 0;
++    sock->family  = 0;
++    sock->event   = NULL;
++    sock->window  = 0;
++    sock->message = 0;
++    sock->wparam  = 0;
++    sock->deferred = NULL;
++    sock->read_q  = NULL;
++    sock->write_q = NULL;
++
++    return sock;
++}
++
+ /* create a new and unconnected socket */
+ static struct object *create_socket( int family, int type, int protocol, unsigned int flags )
+ {
+@@ -592,26 +617,15 @@ static struct object *create_socket( int family, int type, int protocol, unsigne
+         return NULL;
+     }
+     fcntl(sockfd, F_SETFL, O_NONBLOCK); /* make socket nonblocking */
+-    if (!(sock = alloc_object( &sock_ops )))
++    if (!(sock = alloc_sock()))
+     {
+         close( sockfd );
+         return NULL;
+     }
+     sock->state = (type != SOCK_STREAM) ? (FD_READ|FD_WRITE) : 0;
+-    sock->mask    = 0;
+-    sock->hmask   = 0;
+-    sock->pmask   = 0;
+-    sock->polling = 0;
+     sock->flags   = flags;
+     sock->type    = type;
+     sock->family  = family;
+-    sock->event   = NULL;
+-    sock->window  = 0;
+-    sock->message = 0;
+-    sock->wparam  = 0;
+-    sock->deferred = NULL;
+-    sock->read_q  = NULL;
+-    sock->write_q = NULL;
+     if (!(sock->fd = create_anonymous_fd( &sock_fd_ops, sockfd, &sock->obj,
+                             (flags & WSA_FLAG_OVERLAPPED) ? 0 : FILE_SYNCHRONOUS_IO_NONALERT )))
+     {
+@@ -655,7 +669,7 @@ static struct sock *accept_socket( obj_handle_t handle )
+             release_object( sock );
+             return NULL;
+         }
+-        if (!(acceptsock = alloc_object( &sock_ops )))
++        if (!(acceptsock = alloc_sock()))
+         {
+             close( acceptfd );
+             release_object( sock );
+@@ -668,20 +682,12 @@ static struct sock *accept_socket( obj_handle_t handle )
+         if (sock->state & FD_WINE_NONBLOCKING)
+             acceptsock->state |= FD_WINE_NONBLOCKING;
+         acceptsock->mask    = sock->mask;
+-        acceptsock->hmask   = 0;
+-        acceptsock->pmask   = 0;
+-        acceptsock->polling = 0;
+         acceptsock->type    = sock->type;
+         acceptsock->family  = sock->family;
+-        acceptsock->event   = NULL;
+         acceptsock->window  = sock->window;
+         acceptsock->message = sock->message;
+-        acceptsock->wparam  = 0;
+         if (sock->event) acceptsock->event = (struct event *)grab_object( sock->event );
+-        acceptsock->flags = sock->flags;
+-        acceptsock->deferred = NULL;
+-        acceptsock->read_q  = NULL;
+-        acceptsock->write_q = NULL;
++        acceptsock->flags   = sock->flags;
+         if (!(acceptsock->fd = create_anonymous_fd( &sock_fd_ops, acceptfd, &acceptsock->obj,
+                                                     get_fd_options( sock->fd ) )))
+         {
+-- 
+1.6.5.7
+

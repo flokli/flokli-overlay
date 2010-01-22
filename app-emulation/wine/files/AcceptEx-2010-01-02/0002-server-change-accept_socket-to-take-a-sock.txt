@@ -1,0 +1,95 @@
+From 97a063912faa7cbe312f07c235c5c73a10cf597e Mon Sep 17 00:00:00 2001
+From: Mike Kaplinskiy <mike.kaplinskiy@gmail.com>
+Date: Sun, 9 Aug 2009 13:59:17 -0400
+Subject: [PATCH 2/9] server: change accept_socket to take a sock *
+To: wine-patches <wine-patches@winehq.org>
+
+---
+ server/sock.c |   29 +++++++++++++----------------
+ 1 files changed, 13 insertions(+), 16 deletions(-)
+
+diff --git a/server/sock.c b/server/sock.c
+index b5af1d3..415efac 100644
+--- a/server/sock.c
++++ b/server/sock.c
+@@ -638,17 +638,12 @@ static struct object *create_socket( int family, int type, int protocol, unsigne
+ }
+ 
+ /* accept a socket (creates a new fd) */
+-static struct sock *accept_socket( obj_handle_t handle )
++static struct sock *accept_socket( struct sock *sock )
+ {
+     struct sock *acceptsock;
+-    struct sock *sock;
+     int	acceptfd;
+     struct sockaddr	saddr;
+ 
+-    sock = (struct sock *)get_handle_obj( current->process, handle, FILE_READ_DATA, &sock_ops );
+-    if (!sock)
+-    	return NULL;
+-
+     if ( sock->deferred )
+     {
+         acceptsock = sock->deferred;
+@@ -666,13 +661,11 @@ static struct sock *accept_socket( obj_handle_t handle )
+         if (acceptfd==-1)
+         {
+             sock_set_error();
+-            release_object( sock );
+             return NULL;
+         }
+         if (!(acceptsock = alloc_sock()))
+         {
+             close( acceptfd );
+-            release_object( sock );
+             return NULL;
+         }
+ 
+@@ -692,7 +685,6 @@ static struct sock *accept_socket( obj_handle_t handle )
+                                                     get_fd_options( sock->fd ) )))
+         {
+             release_object( acceptsock );
+-            release_object( sock );
+             return NULL;
+         }
+     }
+@@ -700,7 +692,6 @@ static struct sock *accept_socket( obj_handle_t handle )
+     sock->pmask &= ~FD_ACCEPT;
+     sock->hmask &= ~FD_ACCEPT;
+     sock_reselect( sock );
+-    release_object( sock );
+     return acceptsock;
+ }
+ 
+@@ -793,16 +784,22 @@ DECL_HANDLER(create_socket)
+ /* accept a socket */
+ DECL_HANDLER(accept_socket)
+ {
+-    struct sock *sock;
++    struct sock *sock, *acceptsock;
+ 
+     reply->handle = 0;
+-    if ((sock = accept_socket( req->lhandle )) != NULL)
++    if (!(sock = (struct sock *)get_handle_obj( current->process, req->lhandle,
++                                                FILE_READ_ATTRIBUTES|FILE_WRITE_ATTRIBUTES|FILE_READ_DATA, &sock_ops)))
++        return;
++
++    if ((acceptsock = accept_socket( sock )) != NULL)
+     {
+-        reply->handle = alloc_handle( current->process, &sock->obj, req->access, req->attributes );
+-        sock->wparam = reply->handle;  /* wparam for message is the socket handle */
+-        sock_reselect( sock );
+-        release_object( &sock->obj );
++        reply->handle = alloc_handle( current->process, &acceptsock->obj, req->access, req->attributes );
++        acceptsock->wparam = reply->handle;  /* wparam for message is the socket handle */
++        sock_reselect( acceptsock );
++
++        release_object( acceptsock );
+     }
++    release_object( sock );
+ }
+ 
+ /* set socket event parameters */
+-- 
+1.6.5.7
+
