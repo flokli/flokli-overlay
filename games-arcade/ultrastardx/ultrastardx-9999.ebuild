@@ -21,7 +21,7 @@ DEPEND="dev-lang/fpc
 	media-libs/sdl-mixer
 	media-libs/sdl-ttf
 	projectm? ( media-libs/libprojectm )
-	>=media-libs/portaudio-19_pre20071207
+	>=media-libs/portaudio-19_pre20090514
 	media-video/ffmpeg
 	virtual/opengl
 	virtual/glu
