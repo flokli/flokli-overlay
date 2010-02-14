@@ -36,9 +36,10 @@
  {$IF LIBAVFORMAT_VERSION >= 52020000} // 52.20.0
  (**
   * Returns the LIBAVFORMAT_VERSION_INT constant.
---- lib/ffmpeg/avutil.pas	2010-02-14 23:00:01.213732883 +0100
-+++ lib/ffmpeg/avutil.pas	2010-02-14 22:59:18.844609123 +0100
-@@ -85,6 +85,15 @@
+
+--- lib/ffmpeg/avutil.pas	2010-02-14 23:10:22.173608843 +0100
++++ lib/ffmpeg/avutil.pas	2010-02-14 23:10:33.167607934 +0100
+@@ -85,15 +85,6 @@
                            (LIBAVUTIL_MIN_VERSION_MINOR * VERSION_MINOR) +
                            (LIBAVUTIL_MIN_VERSION_RELEASE * VERSION_RELEASE);
  
@@ -54,3 +55,17 @@
  {$IF LIBAVUTIL_VERSION >= 49008000} // 49.8.0
  (**
   * Returns the LIBAVUTIL_VERSION_INT constant.
+--- lib/ffmpeg/swscale.pas	2010-02-14 23:13:30.288733301 +0100
++++ lib/ffmpeg/swscale.pas	2010-02-14 23:13:43.052732812 +0100
+@@ -62,11 +62,6 @@
+                            (LIBSWSCALE_MAX_VERSION_MINOR * VERSION_MINOR) +
+                            (LIBSWSCALE_MAX_VERSION_RELEASE * VERSION_RELEASE);
+ 
+-(* Check if linked versions are supported *)
+-{$IF (LIBSWSCALE_VERSION > LIBSWSCALE_MAX_VERSION)}
+-  {$MESSAGE Error 'Linked version of libswscale is not yet supported!'}
+-{$IFEND}
+-
+ type
+   TQuadCintArray = array[0..3] of cint;
+   PQuadCintArray = ^TQuadCintArray;
