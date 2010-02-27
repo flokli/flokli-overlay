@@ -2,6 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: $
 
+EAPI=2
 inherit cmake-utils
 
 MY_P=${P/m/M}-Source
@@ -15,7 +16,7 @@ SLOT="0"
 KEYWORDS="~amd64 ~x86"
 IUSE=""
 
-RDEPEND="media-sound/pulseaudio
+RDEPEND="media-sound/pulseaudio[avahi]
 	>=media-libs/libprojectm-qt-2.0.1"
 DEPEND="${RDEPEND}
 	dev-util/pkgconfig"
