@@ -3,9 +3,9 @@
 # $Header: $
 
 EAPI=2
-inherit cmake-utils eutils java-pkg-2 multilib toolchain-funcs
+inherit cmake-utils eutils multilib toolchain-funcs
 
-DESCRIPTION="a computer library for real time MIDI input and output"
+DESCRIPTION="a library for real time MIDI input and output"
 HOMEPAGE="http://portmedia.sourceforge.net/"
 SRC_URI="mirror://sourceforge/portmedia/${PN}-src-${PV}.zip"
 
@@ -14,58 +14,52 @@ SLOT="0"
 KEYWORDS="~amd64 ~x86"
 IUSE="debug"
 
-RDEPEND="media-libs/alsa-lib
-	>=virtual/jdk-1.5"
+RDEPEND="media-libs/alsa-lib"
 DEPEND="${RDEPEND}
 	app-arch/unzip"
 
 S=${WORKDIR}/${PN}
-CMAKE_IN_SOURCE_BUILD="yes"
 
+CMAKE_IN_SOURCE_BUILD="yes"
+CMAKE_USE_RELATIVE_PATHS="yes"
+CMAKE_BUILD_TYPE=Release
+CMAKE_LIBRARY_OUTPUT_DIRECTORY="/usr/$(get_libdir)"
 pkg_setup() {
-	java-pkg-2_pkg_setup
+	if use debug ; then
+		CMAKE_BUILD_TYPE=Debug
+	fi
 }
 
 src_prepare() {
-	if use amd64 ; then
-		sed -i  -e 's:i386:amd64:' \
-			${S}/pm_dylib/CMakeLists.txt \
-			${S}/pm_common/CMakeLists.txt || die "sed failed"
-	fi
+	epatch "${FILESDIR}"/${P}-Makefile.patch
 
-	sed -i	-e 's:client:server:' \
-		-e 's:/usr/local/::' \
-		-e 's:portmidi_s:portmidi:' \
-		${S}/pm_dylib/CMakeLists.txt \
-		${S}/pm_common/CMakeLists.txt || die "sed failed"
-
-	sed -i	-e 's:/usr/local/::' \
-		-e 's:/usr/::' \
-		${S}/pm_java/CMakeLists.txt || die "sed failed"
-
-	# The following fixes a bug in the build scripts
-	mkdir -p ${S}/pm_java/${CMAKE_BUILD_TYPE}
+#	sed -i	-e "s:/usr/local/lib:/usr/$(get_libdir):g" \
+#		pm_common/CMakeLists.txt pm_dylib/CMakeLists.txt || die "sed failed"
+#
+#	sed -i	-e "s:/usr/local/include:/usr/include:g" \
+#		pm_common/CMakeLists.txt pm_dylib/CMakeLists.txt || die "sed failed"
 }
 
 src_configure() {
 	local mycmakeargs=(
-		-DJAVA_INCLUDE_PATH:PATH=`java-config -O`/include
-		-DJAVA_INCLUDE_PATH2:PATH=`java-config -O`/include/linux
 		-DCMAKE_CACHEFILE_DIR=.
 	)
 
-	if use debug ; then
-		mycmakeargs+=( -DCMAKE_BUILD_TYPE=Debug )
-	fi
-	
 	cmake-utils_src_configure
 }
 
-src_compile() {
-	cmake-utils_src_compile -j1
-}
-
 src_install() {
-	cmake-utils_src_install
+	#cmake-utils_src_install
+	
+	dolib pm_dylib/Release/libportmidi.so
+	dolib.a pm_common/Release/libportmidi.a
+
+	insinto /usr/include
+	doins pm_common/portmidi.h
+	doins porttime/porttime.h
+	
 	dodoc CHANGELOG.txt pm_linux/README_LINUX.txt README.txt
+
+	dosym libportmidi.so /usr/$(get_libdir)/libporttime.so
+	dosym libportmidi.a /usr/$(get_libdir)/libporttime.a
 }
