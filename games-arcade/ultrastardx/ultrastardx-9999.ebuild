@@ -68,7 +68,7 @@ src_install() {
 
 	dodoc AUTHORS.txt ChangeLog.german.txt ChangeLog.txt README.txt
 
-	doicon icons/${PN}-icon.svg
+	newicon icons/ultrastardx-icon.svg ultrastardx.svg
 	make_desktop_entry ${PN} "UltraStar Deluxe"
 
 	prepgamesdirs
