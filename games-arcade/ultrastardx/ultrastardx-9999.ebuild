@@ -39,13 +39,12 @@ DEPEND="${RDEPEND}
 S=${WORKDIR}/${P}-src
 
 pkg_setup() {
-    games_pkg_setup
-    built_with_use media-libs/libsdl opengl \
-        || die "You need to compile media-libs/libsdl with USE=opengl."
+	games_pkg_setup
+	built_with_use media-libs/libsdl opengl \
+	    || die "You need to compile media-libs/libsdl with USE=opengl."
 }
 
 src_unpack() {
-	unpack ${A}
 	subversion_src_unpack
 }
 
@@ -54,7 +53,9 @@ src_compile() {
 		$(use_with projectm libprojectM) \
 		$(use_enable debug) \
 		|| die
-	emake || die "emake failed"
+	emake \
+	LDFLAGS="" \
+	|| die "emake failed"
 }
 
 src_install() {
