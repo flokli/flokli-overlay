@@ -1,57 +1,74 @@
-# Copyright 1999-2009 Gentoo Foundation
+# Copyright 1999-2008 Gentoo Foundation
 # Distributed under the terms of the GNU General Public License v2
-# $Header: /var/cvsroot/gentoo-x86/games-arcade/ultrastar-deluxe/ultrastar-deluxe-1.1.0.ebuild,v 1.1 2008/07/04 08:41:32 frostwork Exp $
+# $Header $
 
-inherit eutils games flag-o-matic subversion
+inherit subversion eutils games
 
+SONGS_PKG=USDX-SongPackage
+SONGS_VER=01
+
+DESCRIPTION="An open-source karaoke game"
+HOMEPAGE="http://www.ultrastardeluxe.org/"
 ESVN_REPO_URI="https://ultrastardx.svn.sourceforge.net/svnroot/ultrastardx/trunk"
+ESVN_PROJECT="ultrastardx"
+SRC_URI="songs? ( mirror://sourceforge/${PN}/${SONGS_PKG}-${SONGS_VER}.zip )"
 
-DESCRIPTION="A free and open source karaoke game"
-HOMEPAGE="http://ultrastardx.sourceforge.net/"
-#SRC_URI="http://switch.dl.sourceforge.net/sourceforge/ultrastardx/${P}.tar.bz2"
-
-LICENSE="GPL-2"
+LICENSE="GPL-2
+	songs? (
+		CCPL-Attribution-ShareAlike-NonCommercial-2.5
+		CCPL-Attribution-NonCommercial-NoDerivs-2.5
+	)"
 SLOT="0"
-KEYWORDS="~x86 ~amd64"
-IUSE="projectm"
+KEYWORDS="~amd64 ~x86"
+IUSE="projectm debug songs"
 
-DEPEND="dev-lang/fpc
-	media-libs/sdl-image
-	media-libs/libsdl
-	media-libs/sdl-mixer
-	media-libs/sdl-ttf
-	projectm? ( media-libs/libprojectm )
-	media-libs/portaudio:19
-	media-video/ffmpeg
-	virtual/opengl
+RDEPEND="virtual/opengl
 	virtual/glu
-	dev-lang/lua"
+	media-libs/libsdl
+	media-libs/sdl-image
+	media-libs/freetype
+	media-libs/libpng
+	=media-libs/portaudio-19*
+	media-video/ffmpeg
+	dev-db/sqlite
+	projectm? ( media-libs/libprojectm )"
+DEPEND="${RDEPEND}
+	dev-util/pkgconfig
+	>=dev-lang/fpc-2.2.0"
+
+S=${WORKDIR}/${P}-src
+
+pkg_setup() {
+    games_pkg_setup
+    built_with_use media-libs/libsdl opengl \
+        || die "You need to compile media-libs/libsdl with USE=opengl."
+}
 
 src_unpack() {
+	unpack ${A}
 	subversion_src_unpack
-	cd "${S}/src"
-	epatch "${FILESDIR}"/remove_ffmpeg_checks.patch
 }
 
 src_compile() {
 	egamesconf \
 		$(use_with projectm libprojectM) \
-		|| die "Configure failed!"
-	emake \
-	LDFLAGS="" \
-	|| die "emake failed"
+		$(use_enable debug) \
+		|| die
+	emake || die "emake failed"
 }
-
 
 src_install() {
-	dogamesbin game/ultrastardx
-	insinto "${GAMES_DATADIR}"/${PN}
-	doins -r artwork game/fonts game/languages game/plugins game/resources game/sounds game/themes || die
-	keepdir "${GAMES_DATADIR}"/${PN}/covers
-	keepdir "${GAMES_DATADIR}"/${PN}/songs
-	newicon icons/ultrastardx-icon.svg ultrastardx.svg
-	make_desktop_entry ${PN} "Ultrastar Deluxe"
-	dodoc README*
+	emake DESTDIR="${D}" install || die "emake install failed"
+
+	if use songs; then
+		insinto "${GAMES_DATADIR}"/${PN}/songs
+		doins -r ${WORKDIR}/Songs/* || die "doins songs failed"
+	fi
+
+	dodoc AUTHORS.txt ChangeLog.german.txt ChangeLog.txt README.txt
+
+	doicon icons/${PN}-icon.svg
+	make_desktop_entry ${PN} "UltraStar Deluxe"
+
 	prepgamesdirs
 }
-
