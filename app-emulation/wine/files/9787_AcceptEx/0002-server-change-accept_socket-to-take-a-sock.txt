@@ -1,18 +1,8 @@
-From 97a063912faa7cbe312f07c235c5c73a10cf597e Mon Sep 17 00:00:00 2001
-From: Mike Kaplinskiy <mike.kaplinskiy@gmail.com>
-Date: Sun, 9 Aug 2009 13:59:17 -0400
-Subject: [PATCH 2/9] server: change accept_socket to take a sock *
-To: wine-patches <wine-patches@winehq.org>
-
----
- server/sock.c |   29 +++++++++++++----------------
- 1 files changed, 13 insertions(+), 16 deletions(-)
-
 diff --git a/server/sock.c b/server/sock.c
-index b5af1d3..415efac 100644
+index d6aa97c..0b42f48 100644
 --- a/server/sock.c
 +++ b/server/sock.c
-@@ -638,17 +638,12 @@ static struct object *create_socket( int family, int type, int protocol, unsigne
+@@ -655,17 +655,12 @@ static struct object *create_socket( int family, int type, int protocol, unsigne
  }
  
  /* accept a socket (creates a new fd) */
@@ -31,7 +21,7 @@ index b5af1d3..415efac 100644
      if ( sock->deferred )
      {
          acceptsock = sock->deferred;
-@@ -666,13 +661,11 @@ static struct sock *accept_socket( obj_handle_t handle )
+@@ -683,13 +678,11 @@ static struct sock *accept_socket( obj_handle_t handle )
          if (acceptfd==-1)
          {
              sock_set_error();
@@ -45,7 +35,7 @@ index b5af1d3..415efac 100644
              return NULL;
          }
  
-@@ -692,7 +685,6 @@ static struct sock *accept_socket( obj_handle_t handle )
+@@ -710,7 +703,6 @@ static struct sock *accept_socket( obj_handle_t handle )
                                                      get_fd_options( sock->fd ) )))
          {
              release_object( acceptsock );
@@ -53,7 +43,7 @@ index b5af1d3..415efac 100644
              return NULL;
          }
      }
-@@ -700,7 +692,6 @@ static struct sock *accept_socket( obj_handle_t handle )
+@@ -718,7 +710,6 @@ static struct sock *accept_socket( obj_handle_t handle )
      sock->pmask &= ~FD_ACCEPT;
      sock->hmask &= ~FD_ACCEPT;
      sock_reselect( sock );
@@ -61,7 +51,7 @@ index b5af1d3..415efac 100644
      return acceptsock;
  }
  
-@@ -793,16 +784,22 @@ DECL_HANDLER(create_socket)
+@@ -859,16 +850,22 @@ DECL_HANDLER(create_socket)
  /* accept a socket */
  DECL_HANDLER(accept_socket)
  {
@@ -90,6 +80,3 @@ index b5af1d3..415efac 100644
  }
  
  /* set socket event parameters */
--- 
-1.6.5.7
-

@@ -1,39 +1,19 @@
-From d69a75cbc14723d8b768e62af7a241836b393ca3 Mon Sep 17 00:00:00 2001
-From: Mike Kaplinskiy <mike.kaplinskiy@gmail.com>
-Date: Tue, 25 Aug 2009 21:32:17 -0400
-Subject: [PATCH 9/9] ws2_32: implement GetAcceptExSockaddrs
-To: wine-patches <wine-patches@winehq.org>
-
----
- dlls/ws2_32/socket.c |   42 ++++++++++++++++++++++++++++++++++++++++++
- 1 files changed, 42 insertions(+), 0 deletions(-)
-
 diff --git a/dlls/ws2_32/socket.c b/dlls/ws2_32/socket.c
-index f1d7b29..a6b0f4c 100644
+index 3f441d8..c161720 100644
 --- a/dlls/ws2_32/socket.c
 +++ b/dlls/ws2_32/socket.c
-@@ -2730,6 +2730,7 @@ INT WINAPI WSAIoctl(SOCKET s,
-    case WS_SIO_GET_EXTENSION_FUNCTION_POINTER:
-    {
-         GUID acceptex_guid = WSAID_ACCEPTEX;
-+        GUID getacceptexsockaddrs_guid = WSAID_GETACCEPTEXSOCKADDRS;
- 
-         if ( IsEqualGUID(&acceptex_guid, lpvInBuffer) )
-         {
-@@ -2737,6 +2738,12 @@ INT WINAPI WSAIoctl(SOCKET s,
-             WSASetLastError(STATUS_SUCCESS);
-             return STATUS_SUCCESS;
+@@ -2864,7 +2864,9 @@ INT WINAPI WSAIoctl(SOCKET s,
          }
-+        if ( IsEqualGUID(&getacceptexsockaddrs_guid, lpvInBuffer) )
-+        {
+         else if ( IsEqualGUID(&getaccepexsockaddrs_guid, lpvInBuffer) )
+         {
+-            FIXME("SIO_GET_EXTENSION_FUNCTION_POINTER: unimplemented GetAcceptExSockaddrs\n");
 +            *(LPFN_GETACCEPTEXSOCKADDRS *)lpbOutBuffer = GetAcceptExSockaddrs;
 +            WSASetLastError(STATUS_SUCCESS);
 +            return STATUS_SUCCESS;
-+        }
- 
-         FIXME("SIO_GET_EXTENSION_FUNCTION_POINTER %s: stub\n", debugstr_guid(lpvInBuffer));
-         WSASetLastError(WSAEOPNOTSUPP);
-@@ -5225,6 +5232,41 @@ BOOL WINAPI AcceptEx( SOCKET listener, SOCKET acceptor, PVOID dest, DWORD dest_l
+         }
+         else if ( IsEqualGUID(&transmitfile_guid, lpvInBuffer) )
+         {
+@@ -5408,6 +5410,41 @@ BOOL WINAPI AcceptEx( SOCKET listener, SOCKET acceptor, PVOID dest, DWORD dest_l
  }
  
  /***********************************************************************
@@ -75,6 +55,3 @@ index f1d7b29..a6b0f4c 100644
   *              WSADuplicateSocketA                      (WS2_32.32)
   */
  int WINAPI WSADuplicateSocketA( SOCKET s, DWORD dwProcessId, LPWSAPROTOCOL_INFOA lpProtocolInfo )
--- 
-1.6.5.7
-

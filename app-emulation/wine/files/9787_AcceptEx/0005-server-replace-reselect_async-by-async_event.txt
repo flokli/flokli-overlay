@@ -1,30 +1,5 @@
-From 18728d720b4ab301efc4b023092c4db9855da27d Mon Sep 17 00:00:00 2001
-From: Mike Kaplinskiy <mike.kaplinskiy@gmail.com>
-Date: Mon, 24 Aug 2009 15:15:19 -0400
-Subject: [PATCH 5/9] server: replace reselect_async by async_event
-To: wine-patches <wine-patches@winehq.org>
-
----
- server/async.c      |   10 +++++-----
- server/change.c     |    6 +++---
- server/device.c     |    2 +-
- server/fd.c         |    8 ++++----
- server/file.c       |    2 +-
- server/file.h       |    9 +++++----
- server/mailslot.c   |    6 +++---
- server/mapping.c    |    2 +-
- server/named_pipe.c |    8 ++++----
- server/process.c    |    2 +-
- server/queue.c      |    2 +-
- server/request.c    |    2 +-
- server/serial.c     |    2 +-
- server/signal.c     |    2 +-
- server/sock.c       |    6 +++---
- server/thread.c     |    2 +-
- 16 files changed, 36 insertions(+), 35 deletions(-)
-
 diff --git a/server/async.c b/server/async.c
-index 73cd76d..e6fb059 100644
+index dd28dff..b6544f8 100644
 --- a/server/async.c
 +++ b/server/async.c
 @@ -101,9 +101,9 @@ static const struct object_ops async_queue_ops =
@@ -67,7 +42,7 @@ index 73cd76d..e6fb059 100644
      else
      {
 diff --git a/server/change.c b/server/change.c
-index 56694bf..5fbdcda 100644
+index 7c6c26c..2e4a113 100644
 --- a/server/change.c
 +++ b/server/change.c
 @@ -202,7 +202,7 @@ static const struct fd_ops dir_fd_ops =
@@ -104,10 +79,10 @@ index f0116c8..c658c28 100644
  };
  
 diff --git a/server/fd.c b/server/fd.c
-index 153441e..6c9281f 100644
+index 473cfe6..95e9e21 100644
 --- a/server/fd.c
 +++ b/server/fd.c
-@@ -2054,9 +2054,9 @@ void fd_async_wake_up( struct fd *fd, int type, unsigned int status )
+@@ -2058,9 +2058,9 @@ void fd_async_wake_up( struct fd *fd, int type, unsigned int status )
      }
  }
  
@@ -119,7 +94,7 @@ index 153441e..6c9281f 100644
  }
  
  void no_fd_queue_async( struct fd *fd, const async_data_t *data, int type, int count )
-@@ -2075,8 +2075,8 @@ void default_fd_queue_async( struct fd *fd, const async_data_t *data, int type,
+@@ -2079,8 +2079,8 @@ void default_fd_queue_async( struct fd *fd, const async_data_t *data, int type,
      }
  }
  
@@ -144,7 +119,7 @@ index ac43f0b..e4ecf09 100644
  };
  
 diff --git a/server/file.h b/server/file.h
-index 650e16c..cbc25ff 100644
+index 0d3963f..c784632 100644
 --- a/server/file.h
 +++ b/server/file.h
 @@ -25,6 +25,7 @@
@@ -228,7 +203,7 @@ index 752a4c3..b8957de 100644
  };
  
 diff --git a/server/named_pipe.c b/server/named_pipe.c
-index 3bc4bfe..8916fa7 100644
+index 1d1e03a..80e2ef8 100644
 --- a/server/named_pipe.c
 +++ b/server/named_pipe.c
 @@ -171,8 +171,8 @@ static const struct fd_ops pipe_server_fd_ops =
@@ -261,7 +236,7 @@ index 3bc4bfe..8916fa7 100644
  };
  
 diff --git a/server/process.c b/server/process.c
-index dbd4f2f..9a7db31 100644
+index 3dec3ac..0e0384c 100644
 --- a/server/process.c
 +++ b/server/process.c
 @@ -94,7 +94,7 @@ static const struct fd_ops process_fd_ops =
@@ -274,10 +249,10 @@ index dbd4f2f..9a7db31 100644
  };
  
 diff --git a/server/queue.c b/server/queue.c
-index bc630a5..26701f6 100644
+index e805600..abbd6ea 100644
 --- a/server/queue.c
 +++ b/server/queue.c
-@@ -171,7 +171,7 @@ static const struct fd_ops msg_queue_fd_ops =
+@@ -174,7 +174,7 @@ static const struct fd_ops msg_queue_fd_ops =
      NULL,                        /* removable */
      NULL,                        /* ioctl */
      NULL,                        /* queue_async */
@@ -326,10 +301,10 @@ index 11004fb..ae08f4b 100644
  };
  
 diff --git a/server/sock.c b/server/sock.c
-index fc5e2d6..7d706da 100644
+index 11fb79c..7937688 100644
 --- a/server/sock.c
 +++ b/server/sock.c
-@@ -97,7 +97,7 @@ static void sock_poll_event( struct fd *fd, int event );
+@@ -121,7 +121,7 @@ static void sock_poll_event( struct fd *fd, int event );
  static enum server_fd_type sock_get_fd_type( struct fd *fd );
  static int sock_removable( struct fd *fd );
  static void sock_queue_async( struct fd *fd, const async_data_t *data, int type, int count );
@@ -337,8 +312,8 @@ index fc5e2d6..7d706da 100644
 +static void sock_async_event( struct fd *fd, struct async_queue *queue, struct async *async, int status, int finished );
  static void sock_cancel_async( struct fd *fd, struct process *process, struct thread *thread, client_ptr_t iosb );
  
- static int sock_get_error( int err );
-@@ -132,7 +132,7 @@ static const struct fd_ops sock_fd_ops =
+ static int sock_get_ntstatus( int err );
+@@ -157,7 +157,7 @@ static const struct fd_ops sock_fd_ops =
      sock_removable,               /* removable */
      default_fd_ioctl,             /* ioctl */
      sock_queue_async,             /* queue_async */
@@ -347,20 +322,20 @@ index fc5e2d6..7d706da 100644
      sock_cancel_async             /* cancel_async */
  };
  
-@@ -542,7 +542,7 @@ static void sock_queue_async( struct fd *fd, const async_data_t *data, int type,
-     if ( pollev ) sock_try_event( sock, pollev );
+@@ -559,7 +559,7 @@ static void sock_queue_async( struct fd *fd, const async_data_t *data, int type,
+     sock_reselect( sock );
  }
  
 -static void sock_reselect_async( struct fd *fd, struct async_queue *queue )
 +static void sock_async_event( struct fd *fd, struct async_queue *queue, struct async *async, int status, int finished )
  {
      struct sock *sock = get_fd_user( fd );
-     int events = sock_reselect( sock );
+     sock_reselect( sock );
 diff --git a/server/thread.c b/server/thread.c
-index dd69ec2..458805a 100644
+index d0757a7..a0096a3 100644
 --- a/server/thread.c
 +++ b/server/thread.c
-@@ -158,7 +158,7 @@ static const struct fd_ops thread_fd_ops =
+@@ -157,7 +157,7 @@ static const struct fd_ops thread_fd_ops =
      NULL,                       /* removable */
      NULL,                       /* ioctl */
      NULL,                       /* queue_async */
@@ -369,6 +344,3 @@ index dd69ec2..458805a 100644
      NULL                        /* cancel_async */
  };
  
--- 
-1.6.5.7
-

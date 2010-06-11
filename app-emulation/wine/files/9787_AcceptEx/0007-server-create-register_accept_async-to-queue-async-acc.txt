@@ -1,20 +1,8 @@
-From 4d5a4e98ceea398c753df6224b126e231285aa9f Mon Sep 17 00:00:00 2001
-From: Mike Kaplinskiy <mike.kaplinskiy@gmail.com>
-Date: Sun, 9 Aug 2009 13:58:53 -0400
-Subject: [PATCH 7/9] server: create register_accept_async to queue async accept into requests
-To: wine-patches <wine-patches@winehq.org>
-
----
- include/winsock.h   |    1 +
- server/protocol.def |    7 ++
- server/sock.c       |  226 +++++++++++++++++++++++++++++++++++++++++++++++---
- 3 files changed, 220 insertions(+), 14 deletions(-)
-
 diff --git a/include/winsock.h b/include/winsock.h
-index 69819d5..0670977 100644
+index 2f5e480..25d4bb9 100644
 --- a/include/winsock.h
 +++ b/include/winsock.h
-@@ -844,6 +844,7 @@ typedef struct WS(WSAData)
+@@ -840,6 +840,7 @@ typedef struct WS(WSAData)
  
  /* internal per-socket flags */
  #ifdef __WINESRC__
@@ -23,10 +11,10 @@ index 69819d5..0670977 100644
  #define FD_WINE_NONBLOCKING        0x20000000
  #define FD_WINE_CONNECTED          0x40000000
 diff --git a/server/protocol.def b/server/protocol.def
-index fb36991..9d207e9 100644
+index 146247a..480ba93 100644
 --- a/server/protocol.def
 +++ b/server/protocol.def
-@@ -1088,6 +1088,13 @@ enum server_fd_type
+@@ -1089,6 +1089,13 @@ enum server_fd_type
  @END
  
  
@@ -41,10 +29,18 @@ index fb36991..9d207e9 100644
  @REQ(set_socket_event)
      obj_handle_t  handle;        /* handle to the socket */
 diff --git a/server/sock.c b/server/sock.c
-index 31e1f0b..c887fc3 100644
+index 909fe2d..84eacc9 100644
 --- a/server/sock.c
 +++ b/server/sock.c
-@@ -83,6 +83,9 @@ struct sock
+@@ -80,6 +80,7 @@
+ #define FD_CLOSE                   0x00000020
+ 
+ /* internal per-socket flags */
++#define FD_WINE_ACCEPTING          0x08000000
+ #define FD_WINE_LISTENING          0x10000000
+ #define FD_WINE_NONBLOCKING        0x20000000
+ #define FD_WINE_CONNECTED          0x40000000
+@@ -107,6 +108,9 @@ struct sock
      obj_handle_t        wparam;      /* message wparam (socket handle) */
      int                 errors[FD_MAX_EVENTS]; /* event errors */
      struct sock        *deferred;    /* socket that waits for a deferred accept */
@@ -54,20 +50,21 @@ index 31e1f0b..c887fc3 100644
      struct async_queue *read_q;      /* queue for asynchronous reads */
      struct async_queue *write_q;     /* queue for asynchronous writes */
  };
-@@ -98,10 +101,12 @@ static enum server_fd_type sock_get_fd_type( struct fd *fd );
+@@ -122,11 +126,13 @@ static enum server_fd_type sock_get_fd_type( struct fd *fd );
  static int sock_removable( struct fd *fd );
  static void sock_queue_async( struct fd *fd, const async_data_t *data, int type, int count );
  static void sock_async_event( struct fd *fd, struct async_queue *queue, struct async *async, int status, int finished );
 +static int sock_async_terminated( struct fd *fd, struct async_queue *queue, struct async *async, int status );
  static void sock_cancel_async( struct fd *fd, struct process *process, struct thread *thread, client_ptr_t iosb );
  
+ static int sock_get_ntstatus( int err );
  static int sock_get_error( int err );
  static void sock_set_error(void);
 +static int accept_into_socket( struct sock *sock, struct sock *acceptsock );
  
  static const struct object_ops sock_ops =
  {
-@@ -133,7 +138,7 @@ static const struct fd_ops sock_fd_ops =
+@@ -158,7 +164,7 @@ static const struct fd_ops sock_fd_ops =
      default_fd_ioctl,             /* ioctl */
      sock_queue_async,             /* queue_async */
      sock_async_event,             /* async_event */
@@ -76,7 +73,7 @@ index 31e1f0b..c887fc3 100644
      sock_cancel_async             /* cancel_async */
  };
  
-@@ -223,7 +228,7 @@ static int sock_reselect( struct sock *sock )
+@@ -248,7 +254,7 @@ static int sock_reselect( struct sock *sock )
      if (!sock->polling)  /* FIXME: should find a better way to do this */
      {
          /* previously unconnected socket, is this reselect supposed to connect it? */
@@ -85,8 +82,8 @@ index 31e1f0b..c887fc3 100644
          /* ok, it is, attach it to the wineserver's main poll loop */
          sock->polling = 1;
      }
-@@ -299,6 +304,13 @@ static inline int sock_error( struct fd *fd )
-     return optval ? sock_get_error(optval) : 0;
+@@ -315,6 +321,13 @@ static void sock_dispatch_asyncs( struct sock *sock, int event )
+     }
  }
  
 +static inline void sock_free_accept_async( struct sock *acceptsock )
@@ -99,21 +96,19 @@ index 31e1f0b..c887fc3 100644
  static void sock_poll_event( struct fd *fd, int event )
  {
      struct sock *sock = get_fd_user( fd );
-@@ -477,7 +489,7 @@ static int sock_get_poll_events( struct fd *fd )
+@@ -485,7 +498,7 @@ static int sock_get_poll_events( struct fd *fd )
          return POLLOUT;
      if (sock->state & FD_WINE_LISTENING)
          /* listening, wait for readable */
--        return (sock->hmask & FD_ACCEPT) ? 0 : POLLIN;
-+        return (!(sock->hmask & FD_ACCEPT) || async_waiting( sock->read_q )) ? POLLIN : 0;
+-        return (mask & FD_ACCEPT) ? POLLIN : 0;
++	return (!(sock->hmask & FD_ACCEPT) || async_waiting( sock->read_q )) ? POLLIN : 0;
  
-     if (mask & FD_READ  || async_waiting( sock->read_q )) ev |= POLLIN | POLLPRI;
-     if (mask & FD_WRITE || async_waiting( sock->write_q )) ev |= POLLOUT;
-@@ -546,8 +558,58 @@ static void sock_queue_async( struct fd *fd, const async_data_t *data, int type,
+     if ( async_queued( sock->read_q ) )
+     {
+@@ -563,9 +576,57 @@ static void sock_queue_async( struct fd *fd, const async_data_t *data, int type,
  static void sock_async_event( struct fd *fd, struct async_queue *queue, struct async *async, int status, int finished )
  {
      struct sock *sock = get_fd_user( fd );
--    int events = sock_reselect( sock );
-+    int events;
 +    struct sock *acceptsock, *next;
 +    assert( sock->obj.ops == &sock_ops );
 +
@@ -130,11 +125,9 @@ index 31e1f0b..c887fc3 100644
 +        }
 +    }
 +
-+    events = sock_reselect( sock );
-     if (events) sock_try_event( sock, events );
-+
-+}
-+
+     sock_reselect( sock );
+ }
+ 
 +static int sock_async_terminated( struct fd *fd, struct async_queue *queue, struct async *async, int status)
 +{
 +    struct sock *sock = get_fd_user( fd );
@@ -165,10 +158,12 @@ index 31e1f0b..c887fc3 100644
 +    }
 +
 +    return status;
- }
- 
++}
++
  static void sock_cancel_async( struct fd *fd, struct process *process, struct thread *thread, client_ptr_t iosb )
-@@ -571,12 +633,23 @@ static struct fd *sock_get_fd( struct object *obj )
+ {
+     struct sock *sock = get_fd_user( fd );
+@@ -587,12 +648,23 @@ static struct fd *sock_get_fd( struct object *obj )
  static void sock_destroy( struct object *obj )
  {
      struct sock *sock = (struct sock *)obj;
@@ -192,7 +187,7 @@ index 31e1f0b..c887fc3 100644
  
      free_async_queue( sock->read_q );
      free_async_queue( sock->write_q );
-@@ -608,6 +681,8 @@ static struct sock *alloc_sock(void)
+@@ -624,6 +696,8 @@ static struct sock *alloc_sock(void)
      sock->message = 0;
      sock->wparam  = 0;
      sock->deferred = NULL;
@@ -201,7 +196,7 @@ index 31e1f0b..c887fc3 100644
      sock->read_q  = NULL;
      sock->write_q = NULL;
  
-@@ -649,12 +724,84 @@ static struct object *create_socket( int family, int type, int protocol, unsigne
+@@ -666,12 +740,84 @@ static struct object *create_socket( int family, int type, int protocol, unsigne
      return &sock->obj;
  }
  
@@ -287,7 +282,7 @@ index 31e1f0b..c887fc3 100644
  
      if ( sock->deferred )
      {
-@@ -663,18 +810,12 @@ static struct sock *accept_socket( struct sock *sock )
+@@ -680,18 +826,12 @@ static struct sock *accept_socket( struct sock *sock )
      }
      else
      {
@@ -308,7 +303,7 @@ index 31e1f0b..c887fc3 100644
          if (!(acceptsock = alloc_sock()))
          {
              close( acceptfd );
-@@ -682,7 +823,6 @@ static struct sock *accept_socket( struct sock *sock )
+@@ -699,7 +839,6 @@ static struct sock *accept_socket( struct sock *sock )
          }
  
          /* newly created socket gets the same properties of the listening socket */
@@ -316,7 +311,7 @@ index 31e1f0b..c887fc3 100644
          acceptsock->state  = FD_WINE_CONNECTED|FD_READ|FD_WRITE;
          if (sock->state & FD_WINE_NONBLOCKING)
              acceptsock->state |= FD_WINE_NONBLOCKING;
-@@ -931,3 +1071,61 @@ DECL_HANDLER(set_socket_deferred)
+@@ -993,3 +1132,59 @@ DECL_HANDLER(set_socket_deferred)
      sock->deferred = acceptsock;
      release_object( sock );
  }
@@ -324,7 +319,6 @@ index 31e1f0b..c887fc3 100644
 +DECL_HANDLER(register_accept_async)
 +{
 +    struct sock *sock, *acceptsock;
-+    int pollev;
 +
 +    sock = (struct sock *)get_handle_obj( current->process, req->data.handle,
 +                                          FILE_READ_ATTRIBUTES, &sock_ops );
@@ -336,7 +330,7 @@ index 31e1f0b..c887fc3 100644
 +    if ( !(sock->state & FD_WINE_LISTENING) )
 +    {
 +        release_object( sock );
-+        set_error( STATUS_OBJECT_TYPE_MISMATCH );
++       set_error( STATUS_OBJECT_TYPE_MISMATCH );
 +        return;
 +    }
 +
@@ -370,14 +364,10 @@ index 31e1f0b..c887fc3 100644
 +    acceptsock->state |= FD_WINE_ACCEPTING;
 +    release_object( acceptsock->async );
 +
-+    pollev = sock_reselect( sock );
-+    if ( pollev ) sock_try_event( sock, pollev );
++    sock_reselect( sock );
 +
 +    set_error( STATUS_PENDING );
 +
 +    release_object( acceptsock );
 +    release_object( sock );
 +}
--- 
-1.6.5.7
-

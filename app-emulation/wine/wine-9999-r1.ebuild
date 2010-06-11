@@ -1,6 +1,6 @@
-# Copyright 1999-2009 Gentoo Foundation
+# Copyright 1999-2010 Gentoo Foundation
 # Distributed under the terms of the GNU General Public License v2
-# $Header: /var/cvsroot/gentoo-x86/app-emulation/wine/wine-9999.ebuild,v 1.51 2009/12/29 06:04:52 vapier Exp $
+# $Header: /var/cvsroot/gentoo-x86/app-emulation/wine/wine-9999.ebuild,v 1.53 2010/06/04 20:40:14 vapier Exp $
 
 EAPI="2"
 
@@ -26,7 +26,7 @@ SRC_URI="${SRC_URI}
 
 LICENSE="LGPL-2.1"
 SLOT="0"
-IUSE="alsa capi cups custom-cflags dbus esd fontconfig +gecko gnutls gphoto2 gsm hal jack jpeg lcms ldap mp3 nas ncurses openal +opengl oss +perl png samba scanner ssl test +threads +truetype win64 +X xcomposite xinerama xml"
+IUSE="alsa capi cups custom-cflags dbus esd fontconfig +gecko gnutls gphoto2 gsm hal jack jpeg lcms ldap mp3 nas ncurses openal +opengl +oss +perl png samba scanner ssl test +threads +truetype win64 +X xcomposite xinerama xml"
 RESTRICT="test" #72375
 
 RDEPEND="truetype? ( >=media-libs/freetype-2.0.0 media-fonts/corefonts )
@@ -70,6 +70,7 @@ RDEPEND="truetype? ( >=media-libs/freetype-2.0.0 media-fonts/corefonts )
 			>=app-emulation/emul-linux-x86-xlibs-2.1
 			>=app-emulation/emul-linux-x86-soundlibs-2.1
 		)
+		openal? ( app-emulation/emul-linux-x86-sdl )
 		app-emulation/emul-linux-x86-baselibs
 		>=sys-kernel/linux-headers-2.6
 	) )
@@ -101,8 +102,8 @@ src_prepare() {
 	epatch_user #282735
 	sed -i '/^UPDATE_DESKTOP_DATABASE/s:=.*:=true:' tools/Makefile.in || die
 	sed -i '/^MimeType/d' tools/wine.desktop || die #117785
-	EPATCH_OPTS="-p1"
-	epatch "${FILESDIR}"/AcceptEx-2010-01-02/*
+	epatch "${FILESDIR}"/9787_AcceptEx/*
+	epatch "${FILESDIR}"/11188_fix_race_condition.patch
 	tools/make_requests
 }
 

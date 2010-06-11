@@ -1,19 +1,8 @@
-From 9148f74e419815d9c654d172afdc46571028d170 Mon Sep 17 00:00:00 2001
-From: Mike Kaplinskiy <mike.kaplinskiy@gmail.com>
-Date: Tue, 25 Aug 2009 20:06:57 -0400
-Subject: [PATCH 8/9] ws2_32: implement AcceptEx
-To: wine-patches <wine-patches@winehq.org>
-
----
- dlls/ws2_32/socket.c     |  230 +++++++++++++++++++++++++++++++++++++++++++++-
- dlls/ws2_32/tests/sock.c |   10 +-
- 2 files changed, 232 insertions(+), 8 deletions(-)
-
 diff --git a/dlls/ws2_32/socket.c b/dlls/ws2_32/socket.c
-index 9a65cb0..f1d7b29 100644
+index 6254bba..3f441d8 100644
 --- a/dlls/ws2_32/socket.c
 +++ b/dlls/ws2_32/socket.c
-@@ -247,6 +247,19 @@ typedef struct ws2_async
+@@ -248,6 +248,19 @@ typedef struct ws2_async
      struct iovec                        iovec[1];
  } ws2_async;
  
@@ -33,7 +22,7 @@ index 9a65cb0..f1d7b29 100644
  /****************************************************************/
  
  /* ----------------------------------- internal data */
-@@ -264,6 +277,8 @@ typedef struct          /* WSAAsyncSelect() control struct */
+@@ -265,6 +278,8 @@ typedef struct          /* WSAAsyncSelect() control struct */
  #define WS_MAX_SOCKETS_PER_PROCESS      128     /* reasonable guess */
  #define WS_MAX_UDP_DATAGRAM             1024
  static INT WINAPI WSA_DefaultBlockingHook( FARPROC x );
@@ -42,7 +31,7 @@ index 9a65cb0..f1d7b29 100644
  
  /* hostent's, servent's and protent's are stored in one buffer per thread,
   * as documented on MSDN for the functions that return any of the buffers */
-@@ -1521,6 +1536,123 @@ static NTSTATUS WS2_async_shutdown( void* user, PIO_STATUS_BLOCK iosb, NTSTATUS
+@@ -1611,6 +1626,123 @@ static NTSTATUS WS2_async_shutdown( void* user, PIO_STATUS_BLOCK iosb, NTSTATUS
  }
  
  /***********************************************************************
@@ -166,31 +155,18 @@ index 9a65cb0..f1d7b29 100644
   *  WS2_register_async_shutdown         (INTERNAL)
   *
   * Helper function for WS_shutdown() on overlapped sockets.
-@@ -2596,9 +2728,20 @@ INT WINAPI WSAIoctl(SOCKET s,
- 	break;
- 
-    case WS_SIO_GET_EXTENSION_FUNCTION_POINTER:
--       FIXME("SIO_GET_EXTENSION_FUNCTION_POINTER %s: stub\n", debugstr_guid(lpvInBuffer));
--       WSASetLastError(WSAEOPNOTSUPP);
--       return SOCKET_ERROR;
-+   {
-+        GUID acceptex_guid = WSAID_ACCEPTEX;
-+
-+        if ( IsEqualGUID(&acceptex_guid, lpvInBuffer) )
-+        {
+@@ -2726,7 +2858,9 @@ INT WINAPI WSAIoctl(SOCKET s,
+         }
+         else if ( IsEqualGUID(&acceptex_guid, lpvInBuffer) )
+         {
+-            FIXME("SIO_GET_EXTENSION_FUNCTION_POINTER: unimplemented AcceptEx\n");
 +            *(LPFN_ACCEPTEX *)lpbOutBuffer = AcceptEx;
 +            WSASetLastError(STATUS_SUCCESS);
 +            return STATUS_SUCCESS;
-+        }
-+
-+        FIXME("SIO_GET_EXTENSION_FUNCTION_POINTER %s: stub\n", debugstr_guid(lpvInBuffer));
-+        WSASetLastError(WSAEOPNOTSUPP);
-+        return SOCKET_ERROR;
-+   }
- 
-    case WS_SIO_KEEPALIVE_VALS:
-    {
-@@ -5001,6 +5144,87 @@ SOCKET WINAPI WSAAccept( SOCKET s, struct WS_sockaddr *addr, LPINT addrlen,
+         }
+         else if ( IsEqualGUID(&getaccepexsockaddrs_guid, lpvInBuffer) )
+         {
+@@ -5193,6 +5327,87 @@ SOCKET WINAPI WSAAccept( SOCKET s, struct WS_sockaddr *addr, LPINT addrlen,
  }
  
  /***********************************************************************
@@ -279,10 +255,10 @@ index 9a65cb0..f1d7b29 100644
   */
  int WINAPI WSADuplicateSocketA( SOCKET s, DWORD dwProcessId, LPWSAPROTOCOL_INFOA lpProtocolInfo )
 diff --git a/dlls/ws2_32/tests/sock.c b/dlls/ws2_32/tests/sock.c
-index fbe55f6..0049730 100644
+index 6356d9f..a3a8663 100644
 --- a/dlls/ws2_32/tests/sock.c
 +++ b/dlls/ws2_32/tests/sock.c
-@@ -2888,7 +2888,7 @@ static void test_AcceptEx(void)
+@@ -3601,7 +3601,7 @@ static void test_AcceptEx(void)
      bret = pAcceptEx(listener, INVALID_SOCKET, buffer, sizeof(buffer) - 2*(sizeof(struct sockaddr_in) + 16),
          sizeof(struct sockaddr_in) + 16, sizeof(struct sockaddr_in) + 16,
          &bytesReturned, &overlapped);
@@ -291,7 +267,7 @@ index fbe55f6..0049730 100644
          "returned %d + errno %d\n", bret, WSAGetLastError());
  
      bret = pAcceptEx(listener, acceptor, NULL, sizeof(buffer) - 2*(sizeof(struct sockaddr_in) + 16),
-@@ -2901,12 +2901,12 @@ static void test_AcceptEx(void)
+@@ -3614,12 +3614,12 @@ static void test_AcceptEx(void)
  
      bret = pAcceptEx(listener, acceptor, buffer, 0, 0, sizeof(struct sockaddr_in) + 16,
          &bytesReturned, &overlapped);
@@ -306,7 +282,7 @@ index fbe55f6..0049730 100644
          "returned %d + errno %d\n", bret, WSAGetLastError());
  
      bret = pAcceptEx(listener, acceptor, buffer, 0,
-@@ -2918,7 +2918,7 @@ static void test_AcceptEx(void)
+@@ -3631,7 +3631,7 @@ static void test_AcceptEx(void)
      bret = pAcceptEx(listener, acceptor, buffer, sizeof(buffer) - 2*(sizeof(struct sockaddr_in) + 16),
          sizeof(struct sockaddr_in) + 16, sizeof(struct sockaddr_in) + 16,
          &bytesReturned, &overlapped);
@@ -315,7 +291,7 @@ index fbe55f6..0049730 100644
          "returned %d + errno %d\n", bret, WSAGetLastError());
  
      iret = listen(listener, 5);
-@@ -2956,7 +2956,7 @@ static void test_AcceptEx(void)
+@@ -3669,7 +3669,7 @@ static void test_AcceptEx(void)
      }
  
      iret = connect(acceptor,  (struct sockaddr*)&bindAddress, sizeof(bindAddress));
@@ -324,6 +300,3 @@ index fbe55f6..0049730 100644
         "connecting to acceptex acceptor succeeded? return %d + errno %d\n", iret, WSAGetLastError());
      if (!iret || (iret == SOCKET_ERROR && WSAGetLastError() == WSAEWOULDBLOCK)) {
          /* We need to cancel this call, otherwise things fail */
--- 
-1.6.5.7
-
