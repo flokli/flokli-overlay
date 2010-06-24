@@ -103,7 +103,6 @@ src_prepare() {
 	sed -i '/^UPDATE_DESKTOP_DATABASE/s:=.*:=true:' tools/Makefile.in || die
 	sed -i '/^MimeType/d' tools/wine.desktop || die #117785
 	epatch "${FILESDIR}"/9787_AcceptEx/*
-	epatch "${FILESDIR}"/11188_fix_race_condition.patch
 	tools/make_requests
 }
 
