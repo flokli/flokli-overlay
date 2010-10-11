@@ -25,7 +25,7 @@ SLOT="0"
 KEYWORDS="amd64 x86"
 IUSE="examples"
 
-DEPEND="dev-lang/php[cli,pcre,simplexml]"
+DEPEND="dev-lang/php[cli,simplexml]"
 RDEPEND="${DEPEND}"
 
 src_prepare() {
