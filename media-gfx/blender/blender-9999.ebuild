@@ -3,12 +3,16 @@
 # $Header: $
 
 EAPI=2
-NEEP_PYTHON="3.1"
-inherit eutils python subversion versionator flag-o-matic
+#NEED_PYTHON="3.1"
+PYTHON_DEPEND="3:3.1"
+inherit eutils python subversion versionator flag-o-matic toolchain-funcs
 
-IUSE="+game-engine player +elbeem +openexr ffmpeg jpeg2k openal openmp verse \
-	+dds debug doc fftw jack apidoc sndfile lcms tweak-mode sdl collada sse \
-	redcode +zlib iconv test"
+IUSE="+game-engine player +elbeem +openexr ffmpeg jpeg2k openal openmp \
+	+dds debug doc fftw jack apidoc sndfile lcms tweak-mode sdl sse \
+	redcode +zlib iconv"
+
+# not complete/working features
+#IUSE="verse collada test"
 
 LANGS="en ar bg ca cs de el es fi fr hr it ja ko nl pl pt_BR ro ru sr sv uk zh_CN"
 for X in ${LANGS} ; do
@@ -22,7 +26,7 @@ ESVN_REPO_URI="https://svn.blender.org/svnroot/bf-blender/trunk/blender"
 #SLOT="$(get_version_component_range 1-2)"
 SLOT="2.5"
 LICENSE="|| ( GPL-2 BL )"
-KEYWORDS=""
+KEYWORDS="~amd64"
 
 RDEPEND="media-libs/jpeg
 	media-libs/libpng
@@ -45,18 +49,12 @@ RDEPEND="media-libs/jpeg
 		jpeg2k? ( >=media-video/ffmpeg-0.5[x264,xvid,mp3,encode,theora,jpeg2k] )
 	)
 	openal? ( >=media-libs/openal-1.6.372 )
-	web? ( >=net-libs/xulrunner-1.9.0.10:1.9 )
 	fftw? ( sci-libs/fftw:3.0 )
 	jack? ( media-sound/jack-audio-connection-kit )
 	sndfile? ( media-libs/libsndfile )
-	lcms? ( media-libs/lcms )
-	collada? (
-		dev-libs/libpcre
-		dev-libs/expat
-	)"
+	lcms? ( media-libs/lcms )"
 
 DEPEND=">=dev-util/scons-0.98
-	>=sys-devel/gcc-4.3.2[openmp?]
 	apidoc? (
 		dev-python/sphinx
 		>=app-doc/doxygen-1.5.7[-nodot]
@@ -82,6 +80,19 @@ blend_with() {
 	else
 		echo "WITH_BF_${UWORD}=0" | tr '[:lower:]' '[:upper:]' \
 			>> "${S}"/user-config.py
+	fi
+}
+
+pkg_setup() {
+	enable_openmp=0
+	if use openmp; then
+		if tc-has-openmp; then
+			enable_openmp=1
+		else
+			ewarn "You are using gcc built without 'openmp' USE."
+			ewarn "Switch CXX to an OpenMP capable compiler."
+			die "Need openmp"
+		fi
 	fi
 }
 
@@ -128,10 +139,19 @@ src_configure() {
 		BF_OPENJPEG_LIB="openjpeg"
 	EOF
 
+	# FIX: littlecms includes path aren't specified
+	if use lcms; then
+		cat <<- EOF >> "${S}"/user-config.py
+			BF_LCMS_INC="/usr/include/"
+			BF_LCMS_LIB="lcms"
+			BF_LCMS_LIBPATH="/usr/lib/"
+		EOF
+	fi
+
 	# add system sci-physic/bullet into Scons build options.
 #	cat <<- EOF >> "${S}"/user-config.py
 #		WITH_BF_BULLET=1
-#		BF_BULLET="/usr"
+#		BF_BULLET="/usr/include"
 #		BF_BULLET_INC="/usr/include /usr/include/BulletCollision /usr/include/BulletDynamics /usr/include/LinearMath /usr/include/BulletSoftBody"
 #		BF_BULLET_LIB="BulletSoftBody BulletDynamics BulletCollision LinearMath"
 #	EOF
@@ -201,15 +221,18 @@ src_configure() {
 
 	# generic settings which differ from the defaults from linux2-config.py
 	cat <<- EOF >> "${S}"/user-config.py
+		BF_OPENGL_LIB='GL GLU X11 Xi GLEW'
 		BF_INSTALLDIR="../install"
 		WITHOUT_BF_PYTHON_INSTALL=1
-		BF_BUILDINFO=1
+		BF_PYTHON="/usr"
+		BF_BUILDINFO=0
 		BF_QUIET=1
 		BF_NUMJOBS=${NUMJOBS}
 		BF_LINE_OVERWRITE=0
 		WITH_BF_FHS=1
 		WITH_BF_BINRELOC=0
 		WITH_BF_STATICOPENGL=0
+		WITH_BF_OPENMP=${enable_openmp}
 	EOF
 
 	# configure WITH_BF* Scons build options
@@ -227,7 +250,6 @@ src_configure() {
 		'ffmpeg' \
 		'ffmpeg ogg' \
 		'player' \
-		'openmp' \
 		'collada' \
 		'sse rayoptimization' \
 		'redcode' \
@@ -247,8 +269,8 @@ src_compile() {
 		to bugs.gentoo.org'
 
 	einfo "Building plugins ..."
-	cd "${WORKDIR}"/install/share/blender/${SLOT}/plugins/ \
-		|| die "dir ${WORKDIR}/install/share/blender/${SLOT}/plugins/ do not exists"
+	cd "${WORKDIR}"/install/plugins/ \
+		|| die "dir ${WORKDIR}/install/plugins/ do not exists"
 	chmod 755 bmake
 
 	# FIX: plugins are built without respecting user's LDFLAGS
@@ -261,7 +283,7 @@ src_compile() {
 
 src_install() {
 	# creating binary wrapper
-	cat <<- EOF >> "${WORKDIR}/install/bin/blender-${SLOT}"
+	cat <<- EOF >> "${WORKDIR}/install/blender-${SLOT}"
 		#!/bin/sh
 
 		# stop this script if the local blender path is a symlink
@@ -273,116 +295,37 @@ src_install() {
 			exit 1
 		fi
 
-		BLENDERPATH="/usr/share/blender/${SLOT}" exec /usr/bin/blender-bin-${SLOT} "\$@"
+		export BLENDER_SYSTEM_SCRIPTS="/usr/share/blender/${SLOT}/scripts"
+        export BLENDER_SYSTEM_DATAFILES="/usr/share/blender/${SLOT}/datafiles" 
+			exec /usr/bin/blender-bin-${SLOT}
 	EOF
 
 	# install binaries
 	exeinto /usr/bin/
-	mv "${WORKDIR}/install/bin/blender" "${WORKDIR}/install/bin/blender-bin-${SLOT}"
-	doexe "${WORKDIR}/install/bin/blender-bin-${SLOT}"
-	doexe "${WORKDIR}/install/bin/blender-${SLOT}"
-	mv "${WORKDIR}"/install/bin/blenderplayer "${WORKDIR}/install/bin/blenderplayer-${SLOT}"
-	use player && doexe "${WORKDIR}"/install/bin/blenderplayer
-	mv "${WORKDIR}"/install/bin/verse_server "${WORKDIR}/install/bin/verse_server-${SLOT}"
-	use verse && doexe "${WORKDIR}"/install/bin/verse_server
+	mv "${WORKDIR}/install/blender" "${WORKDIR}/install/blender-bin-${SLOT}"
+	doexe "${WORKDIR}/install/blender-bin-${SLOT}"
+	doexe "${WORKDIR}/install/blender-${SLOT}"
+	if use player; then
+		mv "${WORKDIR}"/install/blenderplayer \
+			"${WORKDIR}/install/blenderplayer-${SLOT}"
+		doexe "${WORKDIR}"/install/blenderplayer
+	fi
+#	if use verse; then
+#		mv "${WORKDIR}"/install/bin/verse_server \
+#			"${WORKDIR}/install/bin/verse_server-${SLOT}"
+#		doexe "${WORKDIR}"/install/bin/verse_server
+#	fi
 
 	# install plugins
 	exeinto /usr/share/${PN}/${SLOT}/textures
-	doexe "${WORKDIR}"/install/share/blender/${SLOT}/plugins/texture/*.so
+	doexe "${WORKDIR}"/install/plugins/texture/*.so
 	exeinto /usr/share/${PN}/${SLOT}/sequences
-	doexe "${WORKDIR}"/install/share/blender/${SLOT}/plugins/sequence/*.so
+	doexe "${WORKDIR}"/install/plugins/sequence/*.so
 	insinto /usr/include/${PN}/${SLOT}
-	doins "${WORKDIR}"/install/share/blender/${SLOT}/plugins/include/*.h
-	rm -r "${WORKDIR}"/install/share/blender/${SLOT}/plugins
+	doins "${WORKDIR}"/install/plugins/include/*.h
+	rm -r "${WORKDIR}"/install/plugins || die
 
-	# install I18N
-	if [[ ${LINGUAS} != "en" && -n ${LINGUAS} ]]; then
 
-		rm "${WORKDIR}"/install/share/blender/${SLOT}/.Blanguages \
-			|| die "file .Blanguages do not exists"
-		echo "English:en_US" > "${WORKDIR}"/install/share/blender/${SLOT}/.Blanguages
-
-		insinto /usr/share/${PN}/${SLOT}/locale
-		for LANG in ${LINGUAS}; do
-			[[ ${LANG} == "en" ]] && continue
-
-			# installing locale
-			doins -r "${WORKDIR}/install/share/blender/${SLOT}/locale/${LANG}" || die "failed '${LANG}' locale installation"
-
-			# populating file .Blanguages with only the locales choiced by the
-			# user through LINGUAS
-			local I18N
-			case "${LANG}" in
-			ja)
-				I18N="Japanese:ja_JP"
-				;;
-			nl)
-				I18N="Dutch:nl_NL"
-				;;
-			it)
-				I18N="Italian:it_IT"
-				;;
-			de)
-				I18N="German:de_DE"
-				;;
-			fi)
-				I18N="Finnish:fi_FI"
-				;;
-			sv)
-				I18N="Swedish:sv_SE"
-				;;
-			fr)
-				I18N="French:fr_FR"
-				;;
-			es)
-				I18n="Spanish:es_ES"
-				;;
-			ca)
-				I18N="Catalan:ca_ES"
-				;;
-			cs)
-				I18N="Czech:cs_CZ"
-				;;
-			pt_BR)
-				I18N="Brazilian Portuguese:pt_BR"
-				;;
-			zh_CN)
-				I18N="Simplified Chinese:zh_CN"
-				;;
-			ru)
-				I18N="Russian:ru_RU"
-				;;
-			hr)
-				I18N="Croatian:hr_HR"
-				;;
-			sr)
-				I18N="Serbian:sr"
-				;;
-			uk)
-				I18N="Ukrainian:uk_UA"
-				;;
-			pl)
-				I18N="Polish:pl_PL"
-				;;
-			ro)
-				I18N="Romanian:ro"
-				;;
-			ar)
-				I18N="Arabic:ar"
-				;;
-			bg)
-				I18N="Bulgarian:bg"
-				;;
-			el)
-				I18N="Greek:el"
-				;;
-			ko)
-				I18N="Korean:ko"
-				;;
-			esac
-			echo "${I18N}" >> "${WORKDIR}"/install/share/blender/${SLOT}/.Blanguages
-	    done
-	fi
 
 	# install desktop file
 	insinto /usr/share/pixmaps
@@ -425,18 +368,19 @@ src_install() {
 	fi
 
 	# final cleanup
-	rm -r "${WORKDIR}"/install/share/blender/${SLOT}/{Python-license.txt,icons,GPL-license.txt,copyright.txt}
+	rm -r "${WORKDIR}"/install/{Python-license.txt,icons,GPL-license.txt,copyright.txt}
 
 	# installing blender
 	insinto /usr/share/${PN}/${SLOT}
-	doins -r "${WORKDIR}"/install/share/blender/${SLOT}/*
+	doins -r "${WORKDIR}"/install/2.54/*
+#        doins -r "${WORKDIR}"/install/${SLOT}/*
 	doins release/VERSION
 
 	# FIX: making all python scripts readable only by group 'users',
 	#      so nobody can modify scripts apart root user, but python
 	#      cache (*.pyc) can be written and shared across the users.
-	chown root:users -R "${D}/usr/share/${PN}/${SLOT}/scripts"
-	chmod 750 -R "${D}/usr/share/${PN}/${SLOT}/scripts"
+	chown root:users -R "${D}/usr/share/${PN}/${SLOT}/scripts" || die
+	chmod 750 -R "${D}/usr/share/${PN}/${SLOT}/scripts" || die
 }
 
 pkg_preinst() {
@@ -481,3 +425,4 @@ pkg_postinst() {
 	elog "DO NOT USE the tilde inside the paths, as Blender is not"
 	elog "able to handle it, ignoring your customizations."
 }
+
