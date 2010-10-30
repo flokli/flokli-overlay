@@ -34,7 +34,8 @@ src_unpack () {
 src_prepare() {
 	mv "kernel module/usr/src/hdjmod-${PV}" ${S}
 	cd ${S}
-	epatch "${FILESDIR}/snd_card_create.patch" || die "snd_card_create.patch failed"
+	#patch from http://progressif.tehif.eu/articles/40, thanks!
+	epatch "${FILESDIR}/hdjmod_kernel_2.6.35.patch" || die "hdjmod_kernel_2.6.35.patch failed"
 }
 
 src_configure() {
