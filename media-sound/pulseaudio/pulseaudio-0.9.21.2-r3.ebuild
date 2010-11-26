@@ -93,7 +93,8 @@ pkg_setup() {
 }
 
 src_prepare() {
-	epatch "${FILESDIR}"/0001-arm-allow-compilation-for-specific-ARMv5-architecture_cleaner.patch
+	#epatch "${FILESDIR}"/0001-arm-allow-compilation-for-specific-ARMv5-architecture_cleaner.patch
+	epatch "${FILESDIR}"/0001-volume-Add-explicit-checks-for-ARMv6-instructions.patch
 	elibtoolize
 }
 
