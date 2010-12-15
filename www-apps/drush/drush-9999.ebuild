@@ -28,17 +28,13 @@ IUSE="examples"
 DEPEND="dev-lang/php[cli,simplexml]"
 RDEPEND="${DEPEND}"
 
-src_prepare() {
-	find . -name "CVS" -exec rm -rf {} \;
-}
-
 src_install() {
 	insinto /usr/share/drush
 	exeinto /usr/share/drush
 
 	dodoc README.txt || die
 
-	doins -r includes commands drush.php drush.api.php drush.info || die
+	doins -r includes commands drush.php drush.info || die
 
 	doexe drush || die
 
