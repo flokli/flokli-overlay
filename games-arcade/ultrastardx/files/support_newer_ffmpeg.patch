@@ -1,0 +1,99 @@
+diff --git a/src/lib/ffmpeg/avcodec.pas b/src/lib/ffmpeg/avcodec.pas
+index 0a436a4..8315448 100644
+--- a/src/lib/ffmpeg/avcodec.pas
++++ b/src/lib/ffmpeg/avcodec.pas
+@@ -82,15 +82,15 @@ const
+    *)
+   (* Max. supported version by this header *)
+   LIBAVCODEC_MAX_VERSION_MAJOR   = 52;
+-  LIBAVCODEC_MAX_VERSION_MINOR   = 86;
++  LIBAVCODEC_MAX_VERSION_MINOR   = 96;
+   LIBAVCODEC_MAX_VERSION_RELEASE = 1;
+   LIBAVCODEC_MAX_VERSION = (LIBAVCODEC_MAX_VERSION_MAJOR * VERSION_MAJOR) +
+                            (LIBAVCODEC_MAX_VERSION_MINOR * VERSION_MINOR) +
+                            (LIBAVCODEC_MAX_VERSION_RELEASE * VERSION_RELEASE);
+ 
+   (* Min. supported version by this header *)
+-  LIBAVCODEC_MIN_VERSION_MAJOR   = 51;
+-  LIBAVCODEC_MIN_VERSION_MINOR   = 16;
++  LIBAVCODEC_MIN_VERSION_MAJOR   = 50;
++  LIBAVCODEC_MIN_VERSION_MINOR   = 33;
+   LIBAVCODEC_MIN_VERSION_RELEASE = 0;
+   LIBAVCODEC_MIN_VERSION = (LIBAVCODEC_MIN_VERSION_MAJOR * VERSION_MAJOR) +
+                             (LIBAVCODEC_MIN_VERSION_MINOR * VERSION_MINOR) +
+diff --git a/src/lib/ffmpeg/avformat.pas b/src/lib/ffmpeg/avformat.pas
+index bd13c70..0054c0f 100644
+--- a/src/lib/ffmpeg/avformat.pas
++++ b/src/lib/ffmpeg/avformat.pas
+@@ -81,7 +81,7 @@ const
+    *)
+   (* Max. supported version by this header *)
+   LIBAVFORMAT_MAX_VERSION_MAJOR   = 52;
+-  LIBAVFORMAT_MAX_VERSION_MINOR   = 78;
++  LIBAVFORMAT_MAX_VERSION_MINOR   = 84;
+   LIBAVFORMAT_MAX_VERSION_RELEASE = 3;
+   LIBAVFORMAT_MAX_VERSION = (LIBAVFORMAT_MAX_VERSION_MAJOR * VERSION_MAJOR) +
+                             (LIBAVFORMAT_MAX_VERSION_MINOR * VERSION_MINOR) +
+@@ -424,7 +424,6 @@ const
+ 
+   AVFMTCTX_NOHEADER = $0001; (**< signal that no header is present
+                                          (streams are added dynamically) *)
+-
+ {$IF LIBAVFORMAT_VERSION < 52078003}  // < 52.78.3
+   {$IF LIBAVFORMAT_VERSION_MAJOR < 53}
+   MAX_STREAMS = 20;
+@@ -434,9 +433,7 @@ const
+     {$IFEND}
+   {$IFEND}
+ {$ELSE}
+-  {$IFDEF FF_API_MAX_STREAMS}
+   MAX_STREAMS = 20;
+-  {$ENDIF}
+ {$IFEND}
+ 
+ 
+diff --git a/src/lib/ffmpeg/avio.pas b/src/lib/ffmpeg/avio.pas
+index adb59a4..aeb7953 100644
+--- a/src/lib/ffmpeg/avio.pas
++++ b/src/lib/ffmpeg/avio.pas
+@@ -432,10 +432,8 @@ function av_register_protocol(protocol: PURLProtocol): cint;
+ function av_register_protocol(protocol: PURLProtocol): cint;
+   cdecl; external av__format;
+ {$ELSE}
+-  {$IFDEF FF_API_REGISTER_PROTOCOL}
+ function av_register_protocol(protocol: PURLProtocol): cint;
+   cdecl; external av__format;
+-  {$ENDIF}
+ {$IFEND}
+ {$IFEND}
+ {$IF LIBAVFORMAT_VERSION >= 52069000} // 52.69.0
+diff --git a/src/lib/ffmpeg/avutil.pas b/src/lib/ffmpeg/avutil.pas
+index 2f8c79f..f53d7fd 100644
+--- a/src/lib/ffmpeg/avutil.pas
++++ b/src/lib/ffmpeg/avutil.pas
+@@ -91,9 +91,9 @@ const
+    * fix. 
+    *)
+   (* Max. supported version by this header *)
+-  LIBAVUTIL_MAX_VERSION_MAJOR   = 50;
+-  LIBAVUTIL_MAX_VERSION_MINOR   = 24;
+-  LIBAVUTIL_MAX_VERSION_RELEASE = 0;
++  LIBAVUTIL_MAX_VERSION_MAJOR   = 9999;
++  LIBAVUTIL_MAX_VERSION_MINOR   = 9999;
++  LIBAVUTIL_MAX_VERSION_RELEASE = 9999;
+   LIBAVUTIL_MAX_VERSION = (LIBAVUTIL_MAX_VERSION_MAJOR * VERSION_MAJOR) +
+                           (LIBAVUTIL_MAX_VERSION_MINOR * VERSION_MINOR) +
+                           (LIBAVUTIL_MAX_VERSION_RELEASE * VERSION_RELEASE);
+diff --git a/src/lib/ffmpeg/swscale.pas b/src/lib/ffmpeg/swscale.pas
+index 7289e90..739c3f1 100644
+--- a/src/lib/ffmpeg/swscale.pas
++++ b/src/lib/ffmpeg/swscale.pas
+@@ -72,7 +72,7 @@ const
+  *)
+   (* Max. supported version by this header *)
+   LIBSWSCALE_MAX_VERSION_MAJOR   =  0;
+-  LIBSWSCALE_MAX_VERSION_MINOR   = 11;
++  LIBSWSCALE_MAX_VERSION_MINOR   = 12;
+   LIBSWSCALE_MAX_VERSION_RELEASE =  0;
+   LIBSWSCALE_MAX_VERSION = (LIBSWSCALE_MAX_VERSION_MAJOR * VERSION_MAJOR) +
+                            (LIBSWSCALE_MAX_VERSION_MINOR * VERSION_MINOR) +
