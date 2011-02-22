@@ -1,0 +1,124 @@
+--- bulk.c.orig	2011-02-22 11:07:42.000000000 -0800
++++ bulk.c	2011-02-22 11:09:13.000000000 -0800
+@@ -34,6 +34,9 @@
+ #include <linux/usb.h>
+ #include <linux/delay.h>
+ #include <linux/version.h>	/* For LINUX_VERSION_CODE */
++#if ( LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,37) )
++#include <linux/semaphore.h>
++#endif
+ #if ( LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35) )
+ #include <linux/slab.h>
+ #endif
+@@ -3086,7 +3089,11 @@
+ 		goto hdj_create_bulk_interface_error;
+ 	}
+ 	/* allocate the buffer for bulk_out_urb */
++#if ( LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,37) )
++	sema_init(&ubulk->bulk_out_buffer_mutex,1);
++#else
+ 	init_MUTEX(&ubulk->bulk_out_buffer_mutex);
++#endif
+ 	
+ 	ubulk->bulk_out_buffer =
+ #if ( LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35) )
+@@ -3633,7 +3640,11 @@
+ 		return -EINVAL;
+ 	}
+ 
++#if ( LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,37) )
++	sema_init(&ubulk->output_control_mutex,1);
++#else
+ 	init_MUTEX(&ubulk->output_control_mutex);
++#endif
+ 	init_completion(&ubulk->output_control_completion);
+ 
+ 	/* Every product here except the Steel targets HID.  Since the steel does not target HID, we don't
+@@ -3907,7 +3918,11 @@
+ 	u16 value = 0;
+ 	struct hdj_console_context *dc = ((struct hdj_console_context *)ubulk->device_context);
+ 
++#if ( LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,37) )
++	sema_init(&dc->device_config_mutex,1);
++#else
+ 	init_MUTEX(&dc->device_config_mutex);
++#endif
+ 	
+ 	ret = hdjbulk_init_common_context(ubulk,&ubulk->hdj_common);
+ 	if (ret!=0) {
+@@ -4185,7 +4200,11 @@
+ 
+ 	spin_lock_init(&dc->bulk_buffer_lock);
+ 	init_completion(&dc->bulk_request_completion);
++#if ( LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,37) )
++	sema_init(&dc->bulk_request_mutex,1);
++#else
+ 	init_MUTEX(&dc->bulk_request_mutex);
++#endif
+ 
+ 	if ((ret = init_continuous_reader(ubulk))!=0) {
+ 		printk(KERN_WARNING"%s() init_continuous_reader() failed, rc:%d\n",
+
+--- device.c.orig	2011-02-22 11:07:42.000000000 -0800
++++ device.c	2011-02-22 11:09:13.000000000 -0800
+@@ -66,7 +66,11 @@
+ module_param_array(id, charp, NULL, 0444);
+ MODULE_PARM_DESC(id, "ID string for the Hercules DJ Series adapter.");
+ 
++#if ( LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,37) )
++static DEFINE_SEMAPHORE(register_mutex);
++#else
+ static DECLARE_MUTEX(register_mutex);
++#endif
+ static struct snd_hdj_chip *usb_chip[SNDRV_CARDS];
+ 
+ /* reference count for the socket */
+@@ -1698,7 +1702,11 @@
+ 	chip->card = card;
+ 	chip->product_code = product_code;
+ 
++#if ( LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,37) )
++	sema_init(&chip->vendor_request_mutex,1);
++#else
+ 	init_MUTEX(&chip->vendor_request_mutex);
++#endif
+ 
+ 	/* initialise the atomic variables */
+ 	atomic_set(&chip->locked_io, 0);
+@@ -1713,7 +1721,11 @@
+ 	INIT_LIST_HEAD(&chip->bulk_list);
+ 	chip->usb_id = USB_ID(le16_to_cpu(dev->descriptor.idVendor),
+ 			      le16_to_cpu(dev->descriptor.idProduct));
++#if ( LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,37) )
++	sema_init(&chip->netlink_list_mutex,1);
++#else
+ 	init_MUTEX(&chip->netlink_list_mutex);
++#endif
+ 	INIT_LIST_HEAD(&chip->netlink_registered_processes);
+ 	
+ 	/* fill in DJ capabilities for this device */
+
+--- midi.c.orig	2011-02-22 11:07:42.000000000 -0800
++++ midi.c	2011-02-22 11:09:13.000000000 -0800
+@@ -34,6 +34,9 @@
+ #include <linux/module.h>
+ #include <linux/usb.h>
+ #include <linux/kthread.h>
++#if ( LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,37) )
++#include <linux/semaphore.h>
++#endif
+ #if ( LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35) )
+ #include <linux/slab.h>
+ #endif
+@@ -732,7 +735,11 @@
+ 	
+ 	/* this buffer and URB below are for general control requests, like changing the
+ 	 *  mouse setting or setting LEDs */
++#if ( LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,37) )
++	sema_init(&controller_state->output_control_ctl_mutex, 1);
++#else
+ 	init_MUTEX(&controller_state->output_control_ctl_mutex);
++#endif
+ 	init_completion(&controller_state->output_control_ctl_completion);
+ #if ( LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35) )
+ 	controller_state->output_control_ctl_req = usb_alloc_coherent(ep->umidi->chip->dev, 

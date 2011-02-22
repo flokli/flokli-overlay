@@ -34,8 +34,11 @@ src_unpack () {
 src_prepare() {
 	mv "kernel module/usr/src/hdjmod-${PV}" ${S}
 	cd ${S}
-	#patch from http://progressif.tehif.eu/articles/40, thanks!
-	epatch "${FILESDIR}/hdjmod_kernel_2.6.35.patch" || die "hdjmod_kernel_2.6.35.patch failed"
+
+	epatch "${FILESDIR}/dj_console_mp3_e2.patch"
+	epatch "${FILESDIR}/kernel_2.6.31_fix.patch"
+	epatch "${FILESDIR}/kernel_2.6.35_fix.patch"
+	epatch "${FILESDIR}/kernel_2.6.37_fix.patch"
 }
 
 src_configure() {
