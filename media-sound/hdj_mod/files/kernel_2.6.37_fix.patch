@@ -1,5 +1,5 @@
---- bulk.c.orig	2011-02-22 11:07:42.000000000 -0800
-+++ bulk.c	2011-02-22 11:09:13.000000000 -0800
+--- bulk.c.orig	2011-02-23 10:51:32.000000000 -0800
++++ bulk.c	2011-02-23 10:52:10.000000000 -0800
 @@ -34,6 +34,9 @@
  #include <linux/usb.h>
  #include <linux/delay.h>
@@ -58,9 +58,8 @@
  
  	if ((ret = init_continuous_reader(ubulk))!=0) {
  		printk(KERN_WARNING"%s() init_continuous_reader() failed, rc:%d\n",
-
---- device.c.orig	2011-02-22 11:07:42.000000000 -0800
-+++ device.c	2011-02-22 11:09:13.000000000 -0800
+--- device.c.orig	2011-02-23 10:51:50.000000000 -0800
++++ device.c	2011-02-23 10:52:10.000000000 -0800
 @@ -66,7 +66,11 @@
  module_param_array(id, charp, NULL, 0444);
  MODULE_PARM_DESC(id, "ID string for the Hercules DJ Series adapter.");
@@ -97,9 +96,8 @@
  	INIT_LIST_HEAD(&chip->netlink_registered_processes);
  	
  	/* fill in DJ capabilities for this device */
-
---- midi.c.orig	2011-02-22 11:07:42.000000000 -0800
-+++ midi.c	2011-02-22 11:09:13.000000000 -0800
+--- midi.c.orig	2011-02-23 10:52:02.000000000 -0800
++++ midi.c	2011-02-23 10:52:10.000000000 -0800
 @@ -34,6 +34,9 @@
  #include <linux/module.h>
  #include <linux/usb.h>

@@ -1,5 +1,5 @@
---- bulk.c.orig	2009-01-27 06:25:50.000000000 -0800
-+++ bulk.c	2011-02-22 10:44:20.000000000 -0800
+--- bulk.c.orig	2011-02-23 10:41:43.000000000 -0800
++++ bulk.c	2011-02-23 10:43:32.000000000 -0800
 @@ -34,6 +34,9 @@
  #include <linux/usb.h>
  #include <linux/delay.h>
@@ -156,9 +156,8 @@
  					ep->urb->transfer_buffer,
  					ep->urb->transfer_dma);
  		}
-
---- configuration_manager.c.orig	2009-01-27 06:25:50.000000000 -0800
-+++ configuration_manager.c	2011-02-22 10:43:17.000000000 -0800
+--- configuration_manager.c.orig	2011-02-23 10:42:03.000000000 -0800
++++ configuration_manager.c	2011-02-23 10:43:32.000000000 -0800
 @@ -26,6 +26,9 @@
  #include <linux/usb.h>
  #include <linux/version.h>	/* For LINUX_VERSION_CODE */
@@ -169,9 +168,8 @@
  #if ( LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,24) )
  #include <sound/driver.h>
  #endif
-
---- device.c.orig	2011-02-22 10:42:43.000000000 -0800
-+++ device.c	2011-02-22 10:45:22.000000000 -0800
+--- device.c.orig	2011-02-23 10:42:11.000000000 -0800
++++ device.c	2011-02-23 10:43:32.000000000 -0800
 @@ -1559,7 +1559,11 @@
  
  	if(chip->ctrl_req_buffer != NULL)
@@ -196,7 +194,7 @@
  			sizeof(*(chip->ctl_req)),
  			chip->ctl_req,
  			chip->ctl_req_dma);
-@@ -1728,12 +1736,20 @@
+@@ -1736,12 +1744,20 @@
  	}
  
  	/* allocate memory for setup packet for our control requests */
@@ -217,7 +215,7 @@
  		return err;
  	}
  	
-@@ -1743,12 +1759,20 @@
+@@ -1751,12 +1767,20 @@
  
  	chip->ctrl_req_buffer_len =  sizeof(u16);
  	chip->ctrl_urb->transfer_buffer_length = chip->ctrl_req_buffer_len;
@@ -238,8 +236,8 @@
  		return err;
  	}
  
---- midi.c.orig	2009-01-27 06:25:50.000000000 -0800
-+++ midi.c	2011-02-22 10:48:30.000000000 -0800
+--- midi.c.orig	2011-02-23 10:42:25.000000000 -0800
++++ midi.c	2011-02-23 10:43:32.000000000 -0800
 @@ -34,6 +34,9 @@
  #include <linux/module.h>
  #include <linux/usb.h>
