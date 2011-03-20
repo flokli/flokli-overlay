@@ -1,0 +1,12 @@
+diff --git a/qprojectM-pulseaudio.cpp b/qprojectM-pulseaudio.cpp
+index 3b5d990..d72a14d 100644
+--- a/qprojectM-pulseaudio.cpp
++++ b/qprojectM-pulseaudio.cpp
+@@ -43,6 +43,7 @@
+ 
+ #include <fcntl.h>
+ #include <stdlib.h>
++#include <sys/stat.h>
+ #include <math.h>
+ #include <projectM.hpp>
+ #include <qprojectm_mainwindow.hpp>
