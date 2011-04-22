@@ -4,17 +4,8 @@
 
 EAPI="2"
 
-if [ "${PV##*.}" = "9999" ]; then
-	inherit cvs
-	ECVS_SERVER="cvs.drupal.org:/cvs/drupal-contrib"
-	ECVS_USER="anonymous"
-	ECVS_PASS="anonymous"
-	ECVS_MODULE="contributions/modules/drush"
-	S=${WORKDIR}/${ECVS_MODULE}
-else
-	SRC_URI="http://ftp.drupal.org/files/projects/${PN}-All-Versions-${PV}.tar.gz"
-	S=${WORKDIR}/${PN}
-fi
+SRC_URI="http://ftp.drupal.org/files/projects/${PN}-7.x-${PV}.tar.gz"
+S=${WORKDIR}/${PN}
 
 DESCRIPTION="Drupal-centric shell. Simplifies Drupal installation/management"
 HOMEPAGE="http://drupal.org/project/drush"
@@ -25,7 +16,8 @@ SLOT="0"
 KEYWORDS="amd64 x86"
 IUSE="examples"
 
-DEPEND="dev-lang/php[cli,simplexml]"
+#DEPEND="dev-lang/php[cli,simplexml]"
+DEPEND="dev-lang/php[cli,simplexml] dev-php/pear"
 RDEPEND="${DEPEND}"
 
 src_install() {
