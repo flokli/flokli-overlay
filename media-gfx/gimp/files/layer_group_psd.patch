@@ -1,0 +1,239 @@
+From 0a270e797b183f2b325ae6a962a7cea30f5b1d3e Mon Sep 17 00:00:00 2001
+From: Dave Lichterman <laviddichterman@gmail.com>
+Date: Fri, 8 Apr 2011 02:38:40 -0700
+Subject: [PATCH] Add support to file-psd plugin for layer group reading
+ Fix some typos
+
+---
+ plug-ins/file-psd/psd-layer-res-load.c |   30 ++++----------
+ plug-ins/file-psd/psd-load.c           |   68 +++++++++++++++++++++++++++++--
+ plug-ins/file-psd/psd.h                |    5 +-
+ 3 files changed, 74 insertions(+), 29 deletions(-)
+
+diff --git a/plug-ins/file-psd/psd-layer-res-load.c b/plug-ins/file-psd/psd-layer-res-load.c
+index 8249c96..f98377f 100644
+--- a/plug-ins/file-psd/psd-layer-res-load.c
++++ b/plug-ins/file-psd/psd-layer-res-load.c
+@@ -72,8 +72,8 @@
+  * Other *
+   PSD_LOTH_PATTERN        "Patt"        -       * Patterns (PS6) *
+   PSD_LOTH_GRADIENT       "grdm"        -       * Gradient settings (PS6) *
+-  PSD_LOTH_SECTION        "lsct"    Drop Layer  * Section divider setting (PS6) (Layer Groups) *
+-  PSD_LOTH_RESTRICT       "brst"        -       * Channel blending restirction setting (PS6) *
++  PSD_LOTH_SECTION        "lsct"     Loaded     * Section divider setting (PS6) (Layer Groups) *
++  PSD_LOTH_RESTRICT       "brst"        -       * Channel blending restriction setting (PS6) *
+   PSD_LOTH_FOREIGN_FX     "ffxi"        -       * Foreign effect ID (PS6) *
+   PSD_LOTH_PATT_DATA      "shpa"        -       * Pattern data (PS6) *
+   PSD_LOTH_META_DATA      "shmd"        -       * Meta data setting (PS6) *
+@@ -452,8 +452,11 @@ load_resource_lsct (const PSDlayerres  *res_a,
+                     FILE               *f,
+                     GError            **error)
+ {
+-  /* Load adjustment layer */
+-  static gboolean   msg_flag = FALSE;
++  /* Load layer group & type information
++   * Type 0: not a group
++   * Type 1: Open folder
++   * Type 2: Closed folder
++   * Type 3: End of most recent group */
+   guint32           type;
+ 
+   IFDBG(2) g_debug ("Process layer resource block %.4s: Section divider", res_a->key);
+@@ -465,24 +468,7 @@ load_resource_lsct (const PSDlayerres  *res_a,
+   type = GUINT32_FROM_BE (type);
+   IFDBG(3) g_debug ("Section divider type: %i", type);
+ 
+-  if (type == 1 ||      /* Layer group start - open folder */
+-      type == 2)        /* Layer group start - closed folder */
+-    {
+-      lyr_a->drop = TRUE;
+-      if (! msg_flag && CONVERSION_WARNINGS)
+-        {
+-          g_message ("Warning:\n"
+-                     "The image file contains layer groups. "
+-                     "These are not supported by the GIMP and will "
+-                     "be dropped.");
+-          msg_flag = TRUE;
+-        }
+-    }
+-
+-  if (type == 3)        /* End of layer group - hidden in UI */
+-      lyr_a->drop = TRUE;
+-
+-
++  lyr_a->group_type = type;
+   return 0;
+ }
+ 
+diff --git a/plug-ins/file-psd/psd-load.c b/plug-ins/file-psd/psd-load.c
+index 969a266..737c22a 100644
+--- a/plug-ins/file-psd/psd-load.c
++++ b/plug-ins/file-psd/psd-load.c
+@@ -531,6 +531,7 @@ read_layer_block (PSDimage  *img_a,
+               /* Initialise record */
+               lyr_a[lidx]->drop = FALSE;
+               lyr_a[lidx]->id = 0;
++              lyr_a[lidx]->group_type = 0;
+ 
+               if (fread (&lyr_a[lidx]->top, 4, 1, f) < 1
+                   || fread (&lyr_a[lidx]->left, 4, 1, f) < 1
+@@ -1012,6 +1013,9 @@ add_layers (const gint32  image_id,
+             GError      **error)
+ {
+   PSDchannel          **lyr_chn;
++  GArray               *parent_group_stack = g_array_new (FALSE,
++      FALSE, sizeof(gint32));
++  gint32                parent_group_id = -1;
+   guchar               *pixels;
+   guint16               alpha_chn;
+   guint16               user_mask_chn;
+@@ -1059,6 +1063,9 @@ add_layers (const gint32  image_id,
+       return -1;
+     }
+ 
++  /* set the root of the group hierarchy */
++  g_array_append_val (parent_group_stack, parent_group_id);
++
+   for (lidx = 0; lidx < img_a->num_layers; ++lidx)
+     {
+       IFDBG(2) g_debug ("Process Layer No %d.", lidx);
+@@ -1079,9 +1086,28 @@ add_layers (const gint32  image_id,
+           g_free (lyr_a[lidx]->chn_info);
+           g_free (lyr_a[lidx]->name);
+         }
+-
+       else
+         {
++          if (lyr_a[lidx]->group_type != 0)
++            {
++              if (lyr_a[lidx]->group_type == 3)
++                {
++                  /* the </Layer group> marker layers are used to
++                     assemble the layer structure in a single pass */
++                  layer_id = gimp_layer_group_new (image_id);
++                }
++              else /* group-type == 1 || group_type == 2 */
++                {
++                  layer_id = g_array_index (parent_group_stack, gint32,
++                      parent_group_stack->len-1);
++                  /* since the layers are stored in reverse, the group
++                     layer start marker actually means we're done with
++                     that layer group */
++                  g_array_remove_index (parent_group_stack,
++                      parent_group_stack->len-1);
++                }
++            }
++
+           /* Empty layer */
+           if (lyr_a[lidx]->bottom - lyr_a[lidx]->top == 0
+               || lyr_a[lidx]->right - lyr_a[lidx]->left == 0)
+@@ -1221,6 +1247,8 @@ add_layers (const gint32  image_id,
+           l_y = 0;
+           l_w = img_a->columns;
+           l_h = img_a->rows;
++          parent_group_id = g_array_index (parent_group_stack,
++              gint32, parent_group_stack->len-1);
+ 
+           IFDBG(3) g_debug ("Re-hash channel indices");
+           for (cidx = 0; cidx < lyr_a[lidx]->num_channels; ++cidx)
+@@ -1247,7 +1275,36 @@ add_layers (const gint32  image_id,
+               layer_channels++;
+             }
+ 
+-          if (empty)
++          if (lyr_a[lidx]->group_type != 0)
++            {
++              if (lyr_a[lidx]->group_type == 3)
++                {
++                  IFDBG(2) g_debug ("Create placeholder group layer");
++                  g_free (lyr_a[lidx]->name);
++                  gimp_image_insert_layer (image_id, layer_id, parent_group_id, 0);
++                  /* add this group layer as the new parent */
++                  g_array_append_val (parent_group_stack, layer_id);
++                }
++              else
++                {
++                  IFDBG(2) g_debug ("End group layer id %d.", layer_id);
++                  drawable = gimp_drawable_get (layer_id);
++                  layer_mode = psd_to_gimp_blend_mode (lyr_a[lidx]->blend_mode);
++                  gimp_layer_set_mode (layer_id, layer_mode);
++                  gimp_layer_set_opacity (layer_id,
++                      lyr_a[lidx]->opacity * 100 / 255);
++                  gimp_item_set_name (drawable->drawable_id, lyr_a[lidx]->name);
++                  g_free (lyr_a[lidx]->name);
++                  gimp_item_set_visible (drawable->drawable_id,
++                      lyr_a[lidx]->layer_flags.visible);
++                  if (lyr_a[lidx]->id)
++                    gimp_item_set_tattoo (drawable->drawable_id,
++                        lyr_a[lidx]->id);
++                  gimp_drawable_flush (drawable);
++                  gimp_drawable_detach (drawable);
++                }
++            }
++          else if (empty)
+             {
+               IFDBG(2) g_debug ("Create blank layer");
+               image_type = get_gimp_image_type (img_a->base_type, TRUE);
+@@ -1255,7 +1312,7 @@ add_layers (const gint32  image_id,
+                                          img_a->columns, img_a->rows,
+                                          image_type, 0, GIMP_NORMAL_MODE);
+               g_free (lyr_a[lidx]->name);
+-              gimp_image_insert_layer (image_id, layer_id, -1, -1);
++              gimp_image_insert_layer (image_id, layer_id, parent_group_id, -1);
+               drawable = gimp_drawable_get (layer_id);
+               gimp_drawable_fill (drawable->drawable_id, GIMP_TRANSPARENT_FILL);
+               gimp_item_set_visible (drawable->drawable_id, lyr_a[lidx]->layer_flags.visible);
+@@ -1292,7 +1349,7 @@ add_layers (const gint32  image_id,
+                                          layer_mode);
+               IFDBG(3) g_debug ("Layer tattoo: %d", layer_id);
+               g_free (lyr_a[lidx]->name);
+-              gimp_image_insert_layer (image_id, layer_id, -1, -1);
++              gimp_image_insert_layer (image_id, layer_id, parent_group_id, -1);
+               gimp_layer_set_offsets (layer_id, l_x, l_y);
+               gimp_layer_set_lock_alpha  (layer_id, lyr_a[lidx]->layer_flags.trans_prot);
+               drawable = gimp_drawable_get (layer_id);
+@@ -1309,7 +1366,7 @@ add_layers (const gint32  image_id,
+             }
+ 
+           /* Layer mask */
+-          if (user_mask)
++          if (user_mask && lyr_a[lidx]->group_type == 0)
+             {
+               if (empty_mask)
+                 {
+@@ -1421,6 +1478,7 @@ add_layers (const gint32  image_id,
+       g_free (lyr_a[lidx]);
+     }
+   g_free (lyr_a);
++  g_array_free (parent_group_stack, FALSE);
+ 
+   return 0;
+ }
+diff --git a/plug-ins/file-psd/psd.h b/plug-ins/file-psd/psd.h
+index e1b55bb..acece7f 100644
+--- a/plug-ins/file-psd/psd.h
++++ b/plug-ins/file-psd/psd.h
+@@ -114,10 +114,10 @@
+ #define PSD_LPAR_ANNOTATE       "Anno"          /* Annotation (PS6) */
+ 
+ /* Other */
+-#define PSD_LOTH_SECTION        "lsct"          /* Section divider setting - Layer goups (PS6) */
++#define PSD_LOTH_SECTION        "lsct"          /* Section divider setting - Layer groups (PS6) */
+ #define PSD_LOTH_PATTERN        "Patt"          /* Patterns (PS6) */
+ #define PSD_LOTH_GRADIENT       "grdm"          /* Gradient settings (PS6) */
+-#define PSD_LOTH_RESTRICT       "brst"          /* Channel blending restirction setting (PS6) */
++#define PSD_LOTH_RESTRICT       "brst"          /* Channel blending restriction setting (PS6) */
+ #define PSD_LOTH_FOREIGN_FX     "ffxi"          /* Foreign effect ID (PS6) */
+ #define PSD_LOTH_PATT_DATA      "shpa"          /* Pattern data (PS6) */
+ #define PSD_LOTH_META_DATA      "shmd"          /* Meta data setting (PS6) */
+@@ -489,6 +489,7 @@ typedef struct
+   LayerMaskExtra        layer_mask_extra;       /* Layer mask extra data */
+   LayerFlags            layer_flags;            /* Layer flags */
+   guint32               id;                     /* Layer ID (Tattoo) */
++  guchar                group_type;             /* 0 -> not a group; 1 -> open folder; 2 -> closed folder; 3 -> end of group */
+ } PSDlayer;
+ 
+ /* PSD Channel data structure */
+-- 
+1.7.4.1
+
