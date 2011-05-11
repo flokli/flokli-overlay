@@ -19,6 +19,7 @@ DEPEND="${RDEPEND}"
 
 src_prepare() {
 	epatch "${FILESDIR}/${PN}-1.14.3-Makefile.in.patch"
+	epatch "${FILESDIR}/${PN}-reorder-mozpluggerrc.patch"
 	sed -i "s:libprefix=.*:libprefix=/$(get_libdir):" Makefile
 }
 
