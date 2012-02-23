@@ -19,7 +19,7 @@ SLOT="0"
 KEYWORDS="~amd64 ~x86"
 IUSE=""
 
-RDEPEND="=media-libs/libpng-1.2.46"
+RDEPEND="media-libs/libpng"
 DEPEND="${RDEPEND}"
 
 src_install() {
