@@ -32,5 +32,5 @@ src_install() {
   doins "Sublime Text 2/PackageSetup.py"
   doexe "Sublime Text 2/sublime_text"
   dosym "/opt/${PN}/sublime_text" /usr/bin/subl
-  make_desktop_entry "subl" "Sublime Text Editor" "accessories-text-editor" "Application;TextEditor"
+  make_desktop_entry "subl %U" "Sublime Text Editor" "accessories-text-editor" "Application;TextEditor" "MimeType=text/plain;"
 }
