@@ -23,37 +23,33 @@ IUSE="pulseaudio"
 DEPEND=""
 RDEPEND="${DEPEND}
 		x11-libs/libX11
-		x11-libs/libSM
-		x11-libs/libICE
-		x11-libs/libXrender
-		x11-libs/libXrandr
-		x11-libs/libXinerama
 		x11-libs/libXext
-		x11-libs/libxcb
-		x11-libs/libXau
-		x11-libs/libXdmcp
+		x11-libs/libXfixes
+		x11-libs/libXi
+		x11-libs/libXrender
+		x11-libs/libXScrnSaver
+		x11-libs/gdk-pixbuf
 		x11-libs/qt-core:4
 		x11-libs/qt-gui:4
 		x11-libs/qt-webkit:4
 		x11-libs/qt-dbus:4
-		x11-libs/libXScrnSaver
+		x11-libs/gtk+:2
+		x11-libs/cairo
+		x11-libs/pango
+		dev-libs/atk
+		dev-libs/libgcrypt
+		dev-libs/glib:2
+		dev-libs/nspr
+		dev-libs/nss
+		dev-libs/openssl
+		gnome-base/gconf:2
+		media-libs/alsa-lib
 		media-libs/freetype
 		media-libs/fontconfig
-		media-libs/alsa-lib
-		dev-libs/openssl
-		dev-libs/glib:2
 		media-libs/libpng:1.2
-		dev-db/sqlite:3
-		sys-libs/zlib
-		app-arch/bzip2
+		net-print/cups
 		sys-apps/dbus
-		sys-apps/util-linux
-		dev-libs/expat
-		dev-libs/nspr
-		gnome-base/gconf:2
-		x11-libs/gtk+:2
-		dev-libs/nss
-		dev-libs/glib:2
+		sys-libs/zlib
 		pulseaudio? ( >=media-sound/pulseaudio-0.9.21 )"
 
 RESTRICT="mirror strip"
