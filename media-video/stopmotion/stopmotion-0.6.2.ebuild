@@ -1,10 +1,9 @@
 # Copyright 1999-2011 Gentoo Foundation
 # Distributed under the terms of the GNU General Public License v2
-# $Header: $
-
-inherit eutils
 
 EAPI=3
+
+inherit eutils
 
 DESCRIPTION="A small v4l frame capture utility especially suited for stop motion animation."
 HOMEPAGE="http://developer.skolelinux.no/info/studentgrupper/2005-hig-stopmotion/"
