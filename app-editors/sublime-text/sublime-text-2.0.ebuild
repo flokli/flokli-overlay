@@ -6,8 +6,8 @@ EAPI="3"
 
 inherit eutils
 
-MY_PN="Sublime%20Text%202%20Build"
-MY_P="${MY_PN}%20${PV}"
+MY_PN="Sublime%20Text%20"
+MY_P="${MY_PN}${PV}"
 
 DESCRIPTION="Sublime Text is a sophisticated text editor for code, html and prose"
 HOMEPAGE="http://www.sublimetext.com"
