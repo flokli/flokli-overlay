@@ -1,0 +1,19 @@
+--- a/imdiff	2012-08-11 15:29:01.000000000 +0200
++++ b/imdiff	2012-08-11 15:33:30.960050100 +0200
+@@ -35,14 +35,5 @@
+ )
+ [ "$?" != "0" ] && echo "$DIFF" >&2
+ 
+-DIFF_RATIO=$(awk "BEGIN {printf \"%.3f\n\", ($DIFF / ($W*$H))*100 }")
+-echo "pixel difference: $DIFF_RATIO%"
+-
+-if [ "$DIFF" = 0 ]
+-then
+-	echo "OK"
+-	exit 0
+-else
+-	echo "NOK"
+-	exit 1
+-fi
++DIFF_RATIO=$(awk "BEGIN {printf \"%.3f\n\", ($DIFF / ($W*$H)) }")
++echo $DIFF_RATIO

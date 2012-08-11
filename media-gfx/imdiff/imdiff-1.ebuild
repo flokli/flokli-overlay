@@ -4,6 +4,8 @@
 
 EAPI=4
 
+inherit eutils
+
 DESCRIPTION="compare / diff between two images"
 HOMEPAGE="http://en.positon.org/post/Compare-/-diff-between-two-images"
 SRC_URI="http://en.positon.org/public/imdiff"
@@ -19,6 +21,11 @@ RDEPEND="${DEPEND}"
 src_unpack() {
 	mkdir "${S}"
 	mv ${DISTDIR}/${PN} ${S}
+}
+
+src_prepare() {
+	cd ${S}
+	epatch "${FILESDIR}/${PN}.patch"
 }
 
 src_install() {
