@@ -28,4 +28,5 @@ CMAKE_IN_SOURCE_BUILD=1
 src_prepare() {
 	cd ${S}
 	epatch "${FILESDIR}/include_mkdir.patch"
+	epatch "${FILESDIR}/exclude_browserh.patch"
 }

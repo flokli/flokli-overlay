@@ -1,0 +1,10 @@
+--- ../projectM-pulseaudio-2.0.1-Source_orig/projectM-pulseaudio-2.0.1-Source/QPulseAudioThread.hpp	2009-12-06 02:20:42.000000000 +0100
++++ ./QPulseAudioThread.hpp	2011-11-27 15:31:08.797815139 +0100
+@@ -34,7 +34,6 @@
+ {
+ #include <pulse/introspect.h>
+ #include <pulse/pulseaudio.h>
+-#include <pulse/browser.h>
+ }
+ 
+ #include "qprojectm_mainwindow.hpp"
