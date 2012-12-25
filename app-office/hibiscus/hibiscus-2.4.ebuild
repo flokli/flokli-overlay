@@ -6,7 +6,7 @@ EAPI=4
 
 DESCRIPTION="HBCI Plugin for Jameica"
 HOMEPAGE="http://www.willuhn.de/products/hibiscus/"
-SRC_URI="http://www.willuhn.de/products/hibiscus/releases/${PV}/hibiscus.zip"
+SRC_URI="http://www.willuhn.de/products/${PN}/releases/${PV}/${PN}.zip"
 
 LICENSE="GPL"
 SLOT="0"
@@ -20,7 +20,7 @@ src_unpack() {
 	S="$WORKDIR"
 
 	mkdir -p "usr/share/jameica/plugins"
-	unzip ${DISTDIR}/hibiscus.zip -d usr/share/jameica/plugins/
+	unzip ${DISTDIR}/${PN}.zip -d usr/share/jameica/plugins/
 }
 
 src_install() {
