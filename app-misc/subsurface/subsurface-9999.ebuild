@@ -26,6 +26,7 @@ IUSE="usb" # examples"
 
 RDEPEND="dev-libs/glib:2
 	dev-libs/libdivecomputer[static-libs,usb?]
+	sci-geosciences/osm-gps-map
 	dev-libs/libxml2
 	dev-libs/libxslt
 	gnome-base/gconf
