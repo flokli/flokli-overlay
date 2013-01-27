@@ -36,9 +36,15 @@ src_prepare() {
 	cd ${S}
 
 	epatch "${FILESDIR}/dj_console_mp3_e2.patch"
-	epatch "${FILESDIR}/kernel_2.6.31_fix.patch"
-	epatch "${FILESDIR}/kernel_2.6.35_fix.patch"
-	epatch "${FILESDIR}/kernel_2.6.37_fix.patch"
+
+	epatch "${FILESDIR}/hdjmod_kernel_2.6.30.patch"
+	epatch "${FILESDIR}/hdjmod-kfree.patch"
+	epatch "${FILESDIR}/hdjmod_kernel_2.6.36.patch"
+	epatch "${FILESDIR}/hdjmod_kernel_2.6.37.patch"
+	epatch "${FILESDIR}/hdjmod_kernel_2.6.39.patch"
+	epatch "${FILESDIR}/hdjmod_fix_hotplug.patch"
+	epatch "${FILESDIR}/hdjmod_kernel_3.6.patch"
+	epatch "${FILESDIR}/hdjmod_kernel_3.7.patch"
 }
 
 src_configure() {
