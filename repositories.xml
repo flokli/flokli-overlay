@@ -1,0 +1,13 @@
+<repositories version="1.0">
+  <repo quality="experimental" status="unofficial">
+    <name>flokli</name>
+    <description lang="en">flokli overlay</description>
+    <owner type="person">
+      <email>flokli@flokli.de</email>
+      <name>Florian Klink</name>
+    </owner>
+    <source type="git">git://git.flokli.de/flokli-overlay</source>
+    <source type="git">git://github.com/flokli/flokli-overlay.git</source>
+    <source type="git">https://github.com/flokli/flokli-overlay.git</source>
+  </repo>
+</repositories>
