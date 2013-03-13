@@ -1,0 +1,477 @@
+diff -ur orig/etc/router.xml.dist.in newe/etc/router.xml.dist.in
+--- orig/etc/router.xml.dist.in 2012-11-30 17:08:49.025714271 +0400
++++ newe/etc/router.xml.dist.in 2012-11-30 17:56:56.786760601 +0400
+@@ -200,14 +200,152 @@
+ 
+   </aci>
+ 
+-  <!-- Simple message logging to flat file
+-       Remove <enabled/> tag to disable logging -->
+-  <!--
++  <!-- Message logging to flat file and/or database
++       Uncomment <enabled/> to activate logging -->
+   <message_logging>
++    <!-- If enabled is on (<enabled/> is uncommented) message logging to database and (if <file> is uncommented) to file. Using "msglog" data types -->
++       <!--
+     <enabled/>
++       -->
++       <!-- If this is commented out, log to file will be disabled -->
++    <!--
+     <file>filename</file>
++       -->
++       <!-- If without_database is on (<without_database/> is uncommented) message not be stored to database. -->
++       <!--
++       <without_database/>
++       -->
+   </message_logging>
+-  -->
++
++  <!-- Storage database configuration -->
++  <storage>
++    <!-- Dynamic storage modules path -->
++    <path>@pkglibdir@</path>
++
++    <!-- By default, we use the SQLite driver for all storage -->
++    <driver>sqlite</driver>
++
++    <!-- Its also possible to explicitly list alternate drivers for
++         specific data types. -->
++
++    <!-- Store vcards in a ldapvcard database instead -->
++    <!--
++    <driver type='msglog'>mysql</driver>
++    -->
++
++    <!-- Rate limiting -->
++    <limits>
++      <!-- Maximum bytes per second - if more than X bytes are sent in Y
++           seconds, connection is throttled for Z seconds. The format
++           is:
++
++             <bytes seconds='Y' throttle='Z'>X</bytes>
++
++           Default Y is 5, default Z is 60. set X to 0 to disable. -->
++      <!--
++      <queries>3</queries>
++      -->
++    </limits>
++
++    <!-- SQLite driver configuration -->
++    <sqlite>
++      <!-- Database name -->
++      <dbname>@localstatedir@/@package@/db/sqlite.db</dbname>
++
++      <!-- Transacation support. If this is commented out, transactions
++           will be disabled. This might make database accesses faster,
++           but data may be lost if jabberd crashes. -->
++      <transactions/>
++
++      <!-- SQLite busy-timeout in milliseconds. -->
++      <busy-timeout>2000</busy-timeout>
++    </sqlite>
++
++    <!-- MySQL driver configuration -->
++    <mysql>
++      <!-- Database server host and port -->
++      <host>localhost</host>
++      <port>3306</port>
++
++      <!-- Database name -->
++      <dbname>jabberd2</dbname>
++
++      <!-- Database username and password -->
++      <user>jabberd2</user>
++      <pass>secret</pass>
++
++      <!-- Transacation support. If this is commented out, transactions
++           will be disabled. This might make database accesses faster,
++           but data may be lost if jabberd crashes.
++
++           This will need to be disabled if you are using a MySQL
++           earlier than v3.23.xx, as transaction support did not appear
++           until this version. -->
++      <transactions/>
++    </mysql>
++
++    <!-- PostgreSQL driver configuration -->
++    <pgsql>
++      <!-- PostgreSQL connection info.
++           For the rest of the options see
++           http://www.postgresql.org/docs/8.0/interactive/libpq.html -->
++      <conninfo>dbname=jabberd2 user=jabberd2 password=secret</conninfo>
++
++      <!-- Alternatively you may set connection settings separately.
++           These are used only in absence of 'conninfo' -->
++
++      <!-- Database server host and port -->
++      <host>localhost</host>
++      <port>5432</port>
++
++      <!-- Database name -->
++      <dbname>jabberd2</dbname>
++
++      <!-- Database username and password -->
++      <user>jabberd2</user>
++      <pass>secret</pass>
++
++      <!-- Transacation support. If this is commented out, transactions
++           will be disabled. This might make database accesses faster,
++           but data may be lost if jabberd crashes. -->
++      <transactions/>
++    </pgsql>
++
++    <!-- Berkeley DB driver configuration.  This does not support roster
++         maxitems or offline userquota (because the mod_roster
++         implementation does not implement the 'count' callback). -->
++    <db>
++      <!-- Directory to store database files under -->
++      <path>@localstatedir@/@package@/db</path>
++
++      <!-- Synchronize the database to disk after each write. If you
++           disable this, database accesses may be faster, but data may
++           be lost if jabberd crashes. -->
++      <sync/>
++    </db>
++
++    <!-- Oracle driver configuration -->
++    <oracle>
++      <!-- Database server host and port. -->
++      <host>localhost</host>
++      <port>1521</port>
++
++      <!-- Database name -->
++      <dbname>jabberd2</dbname>
++
++      <!-- Database username and password -->
++      <user>jabberd2</user>
++      <pass>secret</pass>
++    </oracle>
++
++    <!-- Filesystem driver configuration -->
++    <fs>
++      <!-- Directory to store database files under. -->
++      <path>@localstatedir@/lib/jabberd2/fs</path>
++    </fs>
++
++  </storage>
++
+ 
+ </router>
+ <!--
+diff -ur orig/Makefile.am newe/Makefile.am
+--- orig/Makefile.am    2012-11-30 17:04:17.886393815 +0400
++++ newe/Makefile.am    2012-11-30 17:05:41.510182419 +0400
+@@ -6,7 +6,7 @@
+ if USE_LIBSUBST
+ SUBDIRS += subst
+ endif
+-SUBDIRS += tools mio sx util c2s router s2s storage sm
++SUBDIRS += tools mio sx util c2s storage router s2s sm
+ if ENABLE_TESTS
+ SUBDIRS += tests
+ endif
+diff -ur orig/router/main.c newe/router/main.c
+--- orig/router/main.c  2012-11-30 17:03:04.538575145 +0400
++++ newe/router/main.c  2012-11-30 17:59:34.478296406 +0400
+@@ -201,6 +201,7 @@
+     /* message logging to flat file */
+     r->message_logging_enabled = j_atoi(config_get_one(r->config, "message_logging.enabled", 0), 0);
+     r->message_logging_file = config_get_one(r->config, "message_logging.file", 0);
++    r->message_logging_nobd = j_atoi(config_get_one(r->config, "message_logging.without_database", 0), 0);
+ 
+     r->check_interval = j_atoi(config_get_one(r->config, "check.interval", 0), 60);
+     r->check_keepalive = j_atoi(config_get_one(r->config, "check.keepalive", 0), 0);
+@@ -393,6 +394,12 @@
+     _router_config_expand(r);
+ 
+     r->log = log_new(r->log_type, r->log_ident, r->log_facility);
++
++    r->st = storage_new(r->config, r->log);
++    if (r->st == NULL) {
++        log_write(r->log, LOG_NOTICE, "failed to initialise one or more storage drivers, aborting");
++        exit(1);
++    }
+     log_write(r->log, LOG_NOTICE, "starting up");
+ 
+     _router_pidfile(r);
+@@ -573,6 +580,8 @@
+     /* unload filter */
+     filter_unload(r);
+ 
++    storage_free(r->st);
++
+     sx_env_free(r->sx_env);
+ 
+     mio_free(r->mio);
+diff -ur orig/router/Makefile.am newe/router/Makefile.am
+--- orig/router/Makefile.am     2012-11-30 17:03:34.886501258 +0400
++++ newe/router/Makefile.am     2012-11-30 18:00:19.190159888 +0400
+@@ -9,6 +9,7 @@
+ 
+ router_LDADD = $(top_builddir)/sx/libsx.la \
+                $(top_builddir)/mio/libmio.la \
++               $(top_builddir)/storage/libstorage.la \
+                $(top_builddir)/util/libutil.la
+ if USE_LIBSUBST
+ router_LDADD += $(top_builddir)/subst/libsubst.la
+diff -ur orig/router/router.c newe/router/router.c
+--- orig/router/router.c        2012-11-30 17:02:53.374602008 +0400
++++ newe/router/router.c        2012-11-30 18:03:34.029613304 +0400
+@@ -563,7 +563,7 @@
+         log_debug(ZONE, "writing route for '%s'*%u to %s, port %d", to->domain, dest+1, target->ip, target->port);
+ 
+         /* if logging enabled, log messages that match our criteria */
+-        if (comp->r->message_logging_enabled && comp->r->message_logging_file != NULL) {
++        if (comp->r->message_logging_enabled && (comp->r->message_logging_file != NULL || comp->r->message_logging_nobd == NULL)) {
+             int attr_msg_to;
+             int attr_msg_from;
+             int attr_route_to;
+@@ -584,7 +584,7 @@
+                 ((jid_msg_from = jid_new(NAD_AVAL(nad, attr_msg_from), NAD_AVAL_L(nad, attr_msg_from))) != NULL) &&    // has valid JID source in message 
+                 ((jid_msg_to = jid_new(NAD_AVAL(nad, attr_msg_to), NAD_AVAL_L(nad, attr_msg_to))) != NULL))                    // has valid JID dest in message
+             {
+-                message_log(nad, comp->r, jid_full(jid_msg_from), jid_full(jid_msg_to));
++                message_log(nad, comp->r, jid_msg_from, jid_msg_to);
+             }
+             if (jid_msg_from != NULL)
+                 jid_free(jid_msg_from);
+@@ -1128,7 +1128,7 @@
+ }
+ 
+ 
+-int message_log(nad_t nad, router_t r, const unsigned char *msg_from, const unsigned char *msg_to)
++int message_log(nad_t nad, router_t r, const jid_t jid_msg_from, const jid_t jid_msg_to)
+ {
+     time_t t;
+     char *time_pos;
+@@ -1145,6 +1145,9 @@
+ 
+     assert((int) (nad != NULL));
+ 
++    unsigned char *msg_from = jid_full(jid_msg_from);
++    unsigned char *msg_to = jid_full(jid_msg_to);
++
+     /* timestamp */
+     t = time(NULL);
+     time_pos = ctime(&t);
+@@ -1187,6 +1190,33 @@
+     }
+     body[body_count] = '\0';
+ 
++    if (!r->message_logging_nobd) {
++        os_t os;
++        os_object_t o;
++        int fco;
++
++        for (fco = 0; fco < 2; fco++)
++        {
++            os = os_new();
++            o = os_object_new(os);
++
++            os_object_put(o, "time_pos", time_pos, os_type_STRING);
++            os_object_put(o, "from_col_owner", &fco, os_type_INTEGER);
++            os_object_put(o, "msg_from", msg_from, os_type_STRING);
++            os_object_put(o, "msg_to", msg_to, os_type_STRING);
++            os_object_put(o, "body", body, os_type_STRING);
++
++            storage_put(r->st, "msglog", jid_user(fco == 1 ? jid_msg_from : jid_msg_to), os);
++
++            os_free(os);
++        }
++    }
++
++    if ( r->message_logging_file == NULL )
++    {
++        return 0;
++    }
++
+     // Log our message
+     umask((mode_t) 0077);
+     if (stat(r->message_logging_file, &filestat)) {
+diff -ur orig/router/router.h newe/router/router.h
+--- orig/router/router.h        2012-11-30 17:02:58.406589893 +0400
++++ newe/router/router.h        2012-11-30 18:04:27.605461791 +0400
+@@ -40,6 +40,7 @@
+ #include "sx/sx.h"
+ #include "mio/mio.h"
+ #include "util/util.h"
++#include "storage/storage.h"
+ 
+ #ifdef HAVE_SIGNAL_H
+ # include <signal.h>
+@@ -159,6 +160,9 @@
+     /** simple message logging */
+ 	int message_logging_enabled;
+ 	char *message_logging_file;
++	int message_logging_nobd;
++
++	storage_t           st;                 /**< storage subsystem */
+ };
+ 
+ /** a single component */
+@@ -231,7 +235,7 @@
+ void    filter_unload(router_t r);
+ int     filter_packet(router_t r, nad_t nad);
+ 
+-int     message_log(nad_t nad, router_t r, const unsigned char *msg_from, const unsigned char *msg_to);
++int     message_log(nad_t nad, router_t r, const jid_t jid_msg_from, const jid_t jid_msg_to);
+ 
+ void routes_free(routes_t routes);
+ 
+Только в orig/tools: db-jd14-2-jd2.sql
+diff -ur orig/tools/db-setup.mysql newe/tools/db-setup.mysql
+--- orig/tools/db-setup.mysql   2012-11-30 17:03:51.462459985 +0400
++++ newe/tools/db-setup.mysql   2012-11-30 17:05:58.702139465 +0400
+@@ -17,6 +17,18 @@
+     `password` TINYTEXT ) DEFAULT CHARSET=UTF8;
+ 
+ --
++-- router message logging table
++-- Used by: router
++--
++CREATE TABLE `msglog` (
++    `collection-owner` TEXT NOT NULL, KEY(`collection-owner`(255)),
++    `time_pos` TEXT,
++    `from_col_owner` INT DEFAULT '0',
++    `msg_from` TEXT,
++    `msg_to` TEXT,
++       `body` TEXT ) DEFAULT CHARSET=UTF8;
++
++--
+ -- Session manager tables 
+ --
+ 
+diff -ur orig/tools/db-setup.oracle newe/tools/db-setup.oracle
+--- orig/tools/db-setup.oracle  2012-11-30 17:03:51.462459985 +0400
++++ newe/tools/db-setup.oracle  2012-11-30 18:36:20.814871422 +0400
+@@ -11,6 +11,7 @@
+  * The following code is used to remove the tables:
+  *
+  * DROP TABLE "authreg" CASCADE CONSTRAINTS;
++ * DROP TABLE "msglog" CASCADE CONSTRAINTS;
+  * DROP TABLE "active" CASCADE CONSTRAINTS;
+  * DROP TABLE "logout" CASCADE CONSTRAINTS;
+  * DROP TABLE "roster-items" CASCADE CONSTRAINTS;
+@@ -59,6 +60,21 @@
+ CREATE SEQUENCE "seq-vacation-settings" INCREMENT BY 1 START WITH 1 MINVALUE 1 NOCYCLE NOCACHE NOORDER;
+ 
+ /*
++ * router message logging table
++ * Used by: router
++ */
++CREATE TABLE "msglog" (
++    "collection-owner" varchar2(4000),
++    "time_pos" varchar2(4000),
++    "from_col_owner" number NOT NULL DEFAULT 0,
++    "msg_from" varchar2(4000),
++    "msg_to" varchar2(4000),
++    "body" varchar2(4000) );
++
++ALTER TABLE "msglog" ADD (
++  PRIMARY KEY ("collection-owner"));
++
++/*
+  * Session manager tables 
+  *
+  *
+diff -ur orig/tools/db-setup.pgsql newe/tools/db-setup.pgsql
+--- orig/tools/db-setup.pgsql   2012-11-30 17:03:51.462459985 +0400
++++ newe/tools/db-setup.pgsql   2012-11-30 18:37:10.238684434 +0400
+@@ -23,6 +23,18 @@
+ CREATE INDEX i_authreg_realm ON "authreg"("realm");
+ 
+ --
++-- router message logging table
++-- Used by: router
++--
++CREATE TABLE "msglog" (
++    "collection-owner" text PRIMARY KEY,
++    "time_pos" text,
++    "from_col_owner" integer NOT NULL DEFAULT 0,
++    "msg_from" text,
++    "msg_to" text,
++    "body" text );
++
++--
+ -- Session manager tables 
+ --
+ 
+diff -ur orig/tools/db-setup.sqlite newe/tools/db-setup.sqlite
+--- orig/tools/db-setup.sqlite  2012-11-30 17:03:51.462459985 +0400
++++ newe/tools/db-setup.sqlite  2012-11-30 18:38:34.230338044 +0400
+@@ -16,6 +16,18 @@
+ CREATE INDEX i_authreg_realm ON "authreg"("realm");
+ 
+ --
++-- router message logging table
++-- Used by: router
++--
++CREATE TABLE "msglog" (
++    "collection-owner" TEXT NOT NULL,
++    "time_pos" TEXT,
++    "from_col_owner" INTEGER NOT NULL DEFAULT 0,
++    "msg_from" TEXT,
++    "msg_to" TEXT,
++    "body" TEXT ) DEFAULT CHARSET=UTF8;
++
++--
+ -- Session manager tables 
+ --
+ 
+diff -ur orig/tools/db-update.mysql newe/tools/db-update.mysql
+--- orig/tools/db-update.mysql  2012-11-30 17:03:51.462459985 +0400
++++ newe/tools/db-update.mysql  2012-11-30 17:05:58.702139465 +0400
+@@ -70,3 +70,15 @@
+ ALTER TABLE `roster-items` DROP INDEX `object-sequence` , ADD PRIMARY KEY ( `object-sequence` );
+ ALTER TABLE `vacation-settings` DROP INDEX `object-sequence` , ADD PRIMARY KEY ( `object-sequence` );
+ ALTER TABLE `vcard` DROP INDEX `object-sequence` , ADD PRIMARY KEY ( `object-sequence` );
++
++--
++-- router message logging table
++-- Used by: router
++--
++CREATE TABLE IF NOT EXISTS `msglog` (
++    `collection-owner` TEXT NOT NULL, KEY(`collection-owner`(255)),
++    `time_pos` TEXT,
++    `from_col_owner` INT DEFAULT '0',
++    `msg_from` TEXT,
++    `msg_to` TEXT,
++    `body` TEXT ) DEFAULT CHARSET=UTF8;
+diff -ur orig/tools/db-update.pgsql newe/tools/db-update.pgsql
+--- orig/tools/db-update.pgsql  2012-11-30 17:03:51.462459985 +0400
++++ newe/tools/db-update.pgsql  2012-11-30 18:37:37.294581977 +0400
+@@ -170,3 +170,16 @@
+ ALTER TABLE "vcard" ADD COLUMN "jabberid" TEXT;
+ ALTER TABLE "vcard" ADD COLUMN "mailer" TEXT;
+ ALTER TABLE "vcard" ADD COLUMN "uid" TEXT;
++
++-- #####################################################################
++-- >2.2.17 logging to database added
++-- #####################################################################
++CREATE TABLE "msglog" (
++    "collection-owner" text PRIMARY KEY,
++    "time_pos" text,
++    "from_col_owner" integer NOT NULL DEFAULT 0,
++    "msg_from" text,
++    "msg_to" text,
++    "body" text );
++
++
+diff -ur orig/tools/db-update.sqlite newe/tools/db-update.sqlite
+--- orig/tools/db-update.sqlite 2012-11-30 17:03:51.462459985 +0400
++++ newe/tools/db-update.sqlite 2012-11-30 18:38:11.382436241 +0400
+@@ -41,3 +41,14 @@
+ 
+ CREATE INDEX i_pubrosterg_owner ON "published-roster-groups"("collection-owner");
+ 
++--
++-- router message logging table
++-- Used by: router
++--
++CREATE TABLE "msglog" (
++    "collection-owner" TEXT NOT NULL,
++    "time_pos" TEXT,
++    "from_col_owner" INTEGER NOT NULL DEFAULT 0,
++    "msg_from" TEXT,
++    "msg_to" TEXT,
++    "body" TEXT ) DEFAULT CHARSET=UTF8;

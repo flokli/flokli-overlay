@@ -1,0 +1,12 @@
+--- jabberd-2.2.17/storage/storage_ldapvcard.c.orig	2012-12-20 11:02:21.000000000 +0400
++++ jabberd-2.2.17/storage/storage_ldapvcard.c	2012-12-20 11:03:13.000000000 +0400
+@@ -430,7 +430,8 @@
+                     ldap_value_free(vals);
+                     continue;
+                 }
+-                if (data->groupattr_regex != NULL && processregex(vals[0],data->groupattr_regex,2,1,group,sizeof(group),drv) !=0) {
++                if (data->groupattr_regex == NULL || processregex(vals[0],data->groupattr_regex,2,1,group,sizeof(group),drv) !=0) {
++                    // if there is no regex defined or processing the regex failed - take value as is
+                     strncpy(group,vals[0],sizeof(group)-1);
+                 }
+                 group[sizeof(group)-1]='\0';
