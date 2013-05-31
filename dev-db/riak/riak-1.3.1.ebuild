@@ -19,7 +19,7 @@ SLOT="0"
 KEYWORDS="~amd64 ~x86"
 IUSE=""
 
-RDEPEND="dev-lang/erlang"
+RDEPEND="<dev-lang/erlang-16"
 DEPEND="${RDEPEND}"
 
 pkg_setup() {
@@ -61,5 +61,9 @@ src_install() {
 	doman doc/man/man1/*
 	dodoc doc/*.txt
 
-	# TODO: init.d / conf.d files
+	dodir /var/log/${PN}
+	fowners riak:riak /var/log/${PN}
+
+	doinitd "${FILESDIR}/init.d/riak"
+	doconfd "${FILESDIR}/conf.d/riak"
 }
