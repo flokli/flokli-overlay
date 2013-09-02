@@ -7,15 +7,15 @@ inherit eutils
 
 DESCRIPTION="organization management tool for Jameica"
 HOMEPAGE="http://www.jverein.de/"
-SRC_URI="http://sourceforge.net/projects/jverein/files/V_2.4/jverein.${PVR}.zip"
+SRC_URI="http://sourceforge.net/projects/jverein/files/V_${PV%.*}/jverein.${PVR}.zip"
 
 LICENSE="GPL"
 SLOT="0"
 KEYWORDS="~x86 ~amd64"
 IUSE=""
 
-DEPEND=">=app-office/jameica-2.4
->=app-office/hibiscus-2.4"
+DEPEND=">=app-office/jameica-${PV%.*}
+>=app-office/hibiscus-${PV%.*}"
 
 RDEPEND="${DEPEND}"
 
