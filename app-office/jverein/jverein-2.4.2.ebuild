@@ -23,7 +23,7 @@ src_unpack() {
 	S="$WORKDIR"
 
 	mkdir -p "usr/share/jameica/plugins"
-	unzip ${DISTDIR}/${PN}.zip -d usr/share/jameica/plugins/
+	unzip ${DISTDIR}/jverein.${PVR}.zip -d usr/share/jameica/plugins/
 }
 
 src_install() {
