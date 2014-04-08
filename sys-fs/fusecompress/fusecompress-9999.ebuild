@@ -4,7 +4,7 @@
 
 EAPI=3
 
-inherit git
+inherit git-2
 
 DESCRIPTION="provides a mountable Linux filesystem which transparently compress
 its content"
